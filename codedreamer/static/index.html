@@ -1,0 +1,1915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeDreamer - Neural Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a24;
+            --bg-card: rgba(26, 26, 36, 0.85);
+            --border: rgba(255, 255, 255, 0.06);
+            --text-primary: #f0f0f5;
+            --text-secondary: #8888a0;
+            --text-muted: #555566;
+            --accent-cyan: #00f5d4;
+            --accent-purple: #9b5de5;
+            --accent-pink: #f15bb5;
+            --accent-yellow: #fee440;
+            --accent-orange: #ff6b35;
+            --accent-blue: #00bbf9;
+            --glow-cyan: 0 0 30px rgba(0, 245, 212, 0.4);
+            --glow-purple: 0 0 30px rgba(155, 93, 229, 0.4);
+            --glow-pink: 0 0 30px rgba(241, 91, 181, 0.4);
+            --gradient-main: linear-gradient(135deg, #9b5de5 0%, #00f5d4 100%);
+            --gradient-warm: linear-gradient(135deg, #f15bb5 0%, #fee440 100%);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated neural background */
+        .bg-pattern {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            background: 
+                radial-gradient(ellipse at 20% 20%, rgba(155, 93, 229, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(0, 245, 212, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(241, 91, 181, 0.05) 0%, transparent 60%);
+            animation: bgPulse 10s ease-in-out infinite alternate;
+        }
+
+        @keyframes bgPulse {
+            0% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+
+        .grid-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* Header */
+        header {
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.8);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: var(--gradient-main);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            box-shadow: var(--glow-purple);
+            animation: logoGlow 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes logoGlow {
+            0% { box-shadow: 0 0 20px rgba(155, 93, 229, 0.4); }
+            100% { box-shadow: 0 0 30px rgba(0, 245, 212, 0.5); }
+        }
+
+        .logo h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            background: var(--gradient-main);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        /* Active Model Indicator */
+        .model-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.8rem;
+        }
+
+        .model-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        .model-dot.active {
+            animation: modelPulse 1s ease-in-out infinite;
+        }
+
+        .model-dot.reasoning { background: var(--accent-purple); }
+        .model-dot.coder { background: var(--accent-cyan); }
+        .model-dot.embed { background: var(--accent-yellow); }
+
+        @keyframes modelPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 currentColor; }
+            50% { transform: scale(1.2); box-shadow: 0 0 15px currentColor; }
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.85rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.offline { background: var(--text-muted); animation: none; }
+        .status-dot.thinking { background: var(--accent-purple); animation: thinkPulse 0.5s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0, 245, 212, 0.4); }
+            50% { opacity: 0.8; box-shadow: 0 0 0 8px rgba(0, 245, 212, 0); }
+        }
+
+        @keyframes thinkPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Main layout - 3 columns */
+        main {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr 380px;
+            gap: 1.25rem;
+            padding: 1.25rem;
+            max-width: 2000px;
+            margin: 0 auto;
+            height: calc(100vh - 80px);
+        }
+
+        @media (max-width: 1400px) {
+            main { 
+                grid-template-columns: 1fr 1fr; 
+                grid-template-rows: auto auto;
+            }
+            .right-column { 
+                grid-column: span 2;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+            }
+        }
+
+        @media (max-width: 900px) {
+            main { grid-template-columns: 1fr; }
+            .right-column {
+                grid-column: span 1;
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-title-icon {
+            font-size: 1rem;
+        }
+
+        /* Live Thought Stream */
+        .thought-stream {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            overflow: hidden;
+        }
+
+        .thought-container {
+            flex: 1;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .thought-line {
+            padding: 0.25rem 0;
+            opacity: 0;
+            transform: translateY(10px);
+            animation: thoughtAppear 0.3s forwards;
+            border-left: 2px solid transparent;
+            padding-left: 0.75rem;
+            margin-left: -0.75rem;
+        }
+
+        .thought-line.generating {
+            border-left-color: var(--accent-purple);
+            animation: thoughtAppear 0.3s forwards, cursorBlink 1s infinite;
+        }
+
+        @keyframes thoughtAppear {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes cursorBlink {
+            0%, 50% { border-left-color: var(--accent-purple); }
+            51%, 100% { border-left-color: transparent; }
+        }
+
+        .thought-token {
+            display: inline;
+            color: var(--text-primary);
+        }
+
+        .thought-token.new {
+            color: var(--accent-cyan);
+            animation: tokenFade 0.5s forwards;
+        }
+
+        @keyframes tokenFade {
+            from { color: var(--accent-cyan); }
+            to { color: var(--text-primary); }
+        }
+
+        .thought-prompt {
+            color: var(--accent-purple);
+            font-size: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .thought-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border);
+            margin-top: auto;
+        }
+
+        /* Brainwave Chart */
+        .brainwave-container {
+            height: 80px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 0.75rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .brainwave-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .brainwave-label {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.75rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .brainwave-rate {
+            color: var(--accent-cyan);
+            font-weight: 600;
+        }
+
+        /* Stats grid */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-mini {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.75rem;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .stat-mini:hover {
+            border-color: var(--accent-cyan);
+            box-shadow: var(--glow-cyan);
+            transform: translateY(-2px);
+        }
+
+        .stat-mini-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--gradient-main);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-mini-label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 0.25rem;
+        }
+
+        /* Graph visualization */
+        .graph-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            min-height: 300px;
+        }
+
+        #graph-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .graph-legend {
+            position: absolute;
+            bottom: 0.75rem;
+            left: 0.75rem;
+            display: flex;
+            gap: 1rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .legend-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .legend-item.active {
+            opacity: 1;
+        }
+
+        .legend-item:not(.active) {
+            opacity: 0.4;
+        }
+
+        .legend-item:not(.active) .legend-dot {
+            background: var(--text-muted) !important;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+
+        /* Dream Timeline */
+        .timeline-container {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+            max-height: 300px;
+        }
+
+        .timeline-container::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .timeline-container::-webkit-scrollbar-thumb {
+            background: var(--accent-purple);
+            border-radius: 2px;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 1.5rem;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0.4rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, var(--accent-purple), var(--accent-cyan), transparent);
+        }
+
+        .timeline-item {
+            position: relative;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .timeline-item:hover {
+            border-color: var(--accent-purple);
+            transform: translateX(4px);
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -1.25rem;
+            top: 1rem;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-purple);
+            border: 2px solid var(--bg-primary);
+        }
+
+        .timeline-item.new::before {
+            animation: timelinePulse 1s ease-out;
+        }
+
+        @keyframes timelinePulse {
+            0% { box-shadow: 0 0 0 0 rgba(155, 93, 229, 0.7); }
+            100% { box-shadow: 0 0 0 15px rgba(155, 93, 229, 0); }
+        }
+
+        .timeline-time {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 0.25rem;
+        }
+
+        .timeline-category {
+            display: inline-block;
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 0.15rem 0.5rem;
+            border-radius: 100px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.35rem;
+        }
+
+        .timeline-category.code_fix { background: rgba(241, 91, 181, 0.2); color: var(--accent-pink); }
+        .timeline-category.code_idea { background: rgba(0, 245, 212, 0.2); color: var(--accent-cyan); }
+        .timeline-category.refactor { background: rgba(155, 93, 229, 0.2); color: var(--accent-purple); }
+        .timeline-category.insight { background: rgba(254, 228, 64, 0.2); color: var(--accent-yellow); }
+        .timeline-category.dream { background: rgba(155, 93, 229, 0.2); color: var(--accent-purple); }
+
+        .timeline-content {
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .timeline-meta {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Tier bars */
+        .tiers-mini {
+            display: flex;
+            gap: 0.35rem;
+            height: 6px;
+            margin-top: 0.75rem;
+        }
+
+        .tier-segment {
+            flex: 1;
+            border-radius: 3px;
+            transition: all 0.5s;
+        }
+
+        .tier-segment.hot { background: var(--accent-pink); }
+        .tier-segment.warm { background: var(--accent-yellow); }
+        .tier-segment.cold { background: var(--text-muted); opacity: 0.5; }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+            opacity: 0.5;
+        }
+
+        /* Leaderboard */
+        .leaderboard {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .leaderboard-entry {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+
+        .leaderboard-entry:hover {
+            border-color: var(--accent-purple);
+            transform: translateX(4px);
+        }
+
+        .leaderboard-rank {
+            font-size: 1.5rem;
+            font-weight: 700;
+            min-width: 2rem;
+            text-align: center;
+            line-height: 1;
+        }
+
+        .leaderboard-rank.gold { 
+            background: linear-gradient(135deg, #ffd700, #ffaa00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .leaderboard-rank.silver { 
+            background: linear-gradient(135deg, #c0c0c0, #888888);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .leaderboard-rank.bronze { 
+            background: linear-gradient(135deg, #cd7f32, #8b4513);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .leaderboard-rank.other {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .leaderboard-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .leaderboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.25rem;
+        }
+
+        .leaderboard-score {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.15rem 0.5rem;
+            background: linear-gradient(135deg, rgba(155, 93, 229, 0.3), rgba(0, 245, 212, 0.3));
+            border-radius: 100px;
+            color: var(--text-primary);
+        }
+
+        .leaderboard-text {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Priority badges */
+        .priority-badge {
+            display: inline-block;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .priority-critical { background: rgba(255, 59, 48, 0.3); color: #ff3b30; border: 1px solid rgba(255, 59, 48, 0.5); }
+        .priority-high { background: rgba(255, 149, 0, 0.3); color: #ff9500; border: 1px solid rgba(255, 149, 0, 0.5); }
+        .priority-medium { background: rgba(0, 245, 212, 0.2); color: var(--accent-cyan); border: 1px solid rgba(0, 245, 212, 0.4); }
+        .priority-low { background: rgba(136, 136, 160, 0.2); color: var(--text-secondary); border: 1px solid rgba(136, 136, 160, 0.3); }
+        .priority-unranked { background: rgba(85, 85, 102, 0.2); color: var(--text-muted); border: 1px solid rgba(85, 85, 102, 0.3); }
+
+        /* Priority filter buttons */
+        .priority-filters {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.75rem;
+            padding: 0 0.5rem;
+        }
+        .priority-filter-btn {
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+        .priority-filter-btn:hover {
+            border-color: var(--accent-cyan);
+            color: var(--text-primary);
+        }
+        .priority-filter-btn.active {
+            background: var(--accent-cyan);
+            color: var(--bg-primary);
+            border-color: var(--accent-cyan);
+        }
+        .priority-filter-btn.active-high {
+            background: rgba(255, 149, 0, 0.8);
+            border-color: #ff9500;
+        }
+        .priority-filter-btn.active-critical {
+            background: rgba(255, 59, 48, 0.8);
+            border-color: #ff3b30;
+        }
+
+        /* Status badge */
+        .status-badge {
+            display: inline-block;
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+            font-size: 0.6rem;
+            margin-left: 0.3rem;
+        }
+        .status-applied { background: rgba(52, 199, 89, 0.3); color: #34c759; }
+        .status-rejected { background: rgba(255, 59, 48, 0.2); color: #ff6b6b; }
+        .status-deferred { background: rgba(255, 204, 0, 0.2); color: #ffcc00; }
+
+        .leaderboard-meta {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Loading states */
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Expanded dream modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 700px;
+            max-height: 80vh;
+            overflow-y: auto;
+            margin: 2rem;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    <div class="grid-overlay"></div>
+
+    <header>
+        <div class="logo">
+            <div class="logo-icon">🧠</div>
+            <h1>CodeDreamer</h1>
+        </div>
+        <div class="header-right">
+            <!-- Active Model Indicator -->
+            <div class="model-indicator">
+                <div class="model-dot reasoning" id="model-reasoning" title="Reasoning Model"></div>
+                <span>Thinker</span>
+                <div class="model-dot coder" id="model-coder" title="Coding Model"></div>
+                <span>Coder</span>
+                <div class="model-dot embed" id="model-embed" title="Embedding Model"></div>
+                <span>Embed</span>
+            </div>
+            <div class="status-badge">
+                <div class="status-dot" id="status-dot"></div>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Left Column: Thought Stream + Brainwave -->
+        <div class="left-column">
+            <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-title-icon">💭</span>
+                        Live Thought Stream
+                    </span>
+                    <div class="spinner" id="thought-spinner" style="display: none;"></div>
+                </div>
+                <div class="thought-stream">
+                    <div class="thought-container" id="thought-container">
+                        <div class="thought-prompt" id="thought-prompt">Waiting for next dream cycle...</div>
+                        <div id="thought-output"></div>
+                    </div>
+                    <div class="thought-meta">
+                        <span id="thought-model">Model: --</span>
+                        <span id="thought-tokens">Tokens: 0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Brainwave Chart -->
+            <div class="card" style="margin-top: 1rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-title-icon">📈</span>
+                        Neural Activity
+                    </span>
+                </div>
+                <div class="brainwave-container">
+                    <canvas class="brainwave-canvas" id="brainwave-canvas"></canvas>
+                    <div class="brainwave-label">
+                        <span class="brainwave-rate" id="brainwave-rate">0</span> tokens
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Column: Stats + Graph -->
+        <div class="center-column">
+            <!-- Stats -->
+            <div class="stats-row">
+                <div class="stat-mini">
+                    <div class="stat-mini-value" id="stat-dreams">0</div>
+                    <div class="stat-mini-label">Dreams</div>
+                </div>
+                <div class="stat-mini">
+                    <div class="stat-mini-value" id="stat-nodes">0</div>
+                    <div class="stat-mini-label">Nodes</div>
+                </div>
+                <div class="stat-mini">
+                    <div class="stat-mini-value" id="stat-hot">0</div>
+                    <div class="stat-mini-label">Hot</div>
+                </div>
+                <div class="stat-mini">
+                    <div class="stat-mini-value" id="stat-novelty">0.0</div>
+                    <div class="stat-mini-label">Avg Score</div>
+                </div>
+            </div>
+
+            <!-- Knowledge Graph -->
+            <div class="card" style="flex: 1;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-title-icon">🕸️</span>
+                        Knowledge Graph
+                    </span>
+                </div>
+                <div class="graph-container">
+                    <svg id="graph-canvas"></svg>
+                    <div class="graph-legend">
+                        <div class="legend-item active" data-type="DREAM" onclick="toggleGraphFilter('DREAM')">
+                            <div class="legend-dot" style="background: var(--accent-purple);"></div>
+                            <span>Dream</span>
+                        </div>
+                        <div class="legend-item active" data-type="FACT" onclick="toggleGraphFilter('FACT')">
+                            <div class="legend-dot" style="background: var(--accent-cyan);"></div>
+                            <span>Fact</span>
+                        </div>
+                        <div class="legend-item active" data-type="CODE" onclick="toggleGraphFilter('CODE')">
+                            <div class="legend-dot" style="background: var(--accent-pink);"></div>
+                            <span>Code</span>
+                        </div>
+                        <div class="legend-item active" data-type="CONCEPT" onclick="toggleGraphFilter('CONCEPT')">
+                            <div class="legend-dot" style="background: var(--accent-yellow);"></div>
+                            <span>Concept</span>
+                        </div>
+                        <div class="legend-item active" data-type="ENTITY" onclick="toggleGraphFilter('ENTITY')">
+                            <div class="legend-dot" style="background: #ff6b35;"></div>
+                            <span>Entity</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="tiers-mini">
+                    <div class="tier-segment hot" id="tier-hot" style="flex: 1;"></div>
+                    <div class="tier-segment warm" id="tier-warm" style="flex: 0;"></div>
+                    <div class="tier-segment cold" id="tier-cold" style="flex: 0;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Leaderboard + Dream Timeline -->
+        <div class="right-column">
+            <!-- Leaderboard Card -->
+            <div class="card" style="margin-bottom: 1rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-title-icon">🏆</span>
+                        Actionable Dreams
+                    </span>
+                    <span id="leaderboard-total" style="font-size: 0.75rem; color: var(--text-muted);"></span>
+                </div>
+                <!-- Priority Filters -->
+                <div class="priority-filters">
+                    <button class="priority-filter-btn active" data-priority="all" onclick="filterByPriority('all')">All</button>
+                    <button class="priority-filter-btn" data-priority="high" onclick="filterByPriority('high')">HIGH</button>
+                    <button class="priority-filter-btn" data-priority="medium" onclick="filterByPriority('medium')">MEDIUM</button>
+                    <button class="priority-filter-btn" data-priority="low" onclick="filterByPriority('low')">LOW</button>
+                    <button class="priority-filter-btn" data-priority="pending" onclick="filterByPriority('pending')" style="margin-left: auto;">Pending Only</button>
+                </div>
+                <div class="leaderboard" id="leaderboard">
+                    <div class="empty-state" style="padding: 1rem;">
+                        <p style="font-size: 0.8rem;">No ranked dreams yet</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dream Timeline Card -->
+            <div class="card" style="flex: 1;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-title-icon">📜</span>
+                        Recent Dreams
+                    </span>
+                    <div class="spinner" id="timeline-spinner" style="display: none;"></div>
+                </div>
+                <div class="timeline-container" id="timeline-container">
+                    <div class="timeline" id="dream-timeline">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">💤</div>
+                            <p>No dreams yet...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Dream Detail Modal -->
+    <div class="modal-overlay" id="dream-modal">
+        <div class="modal-content" id="dream-modal-content"></div>
+    </div>
+
+    <script>
+        // ============================================
+        // STATE
+        // ============================================
+        const state = {
+            connected: false,
+              dreams: [],
+              nodes: [],
+              leaderboardEntries: [],
+              stats: { dreams: 0, nodes: 0, hot: 0, novelty: 0 },
+            activeModel: null,
+            thoughtStream: [],
+            tokenRate: 0,
+            brainwaveData: new Array(100).fill(0),
+            currentPriorityFilter: 'all',
+            currentStatusFilter: null,
+            nextDreamSeconds: null,
+            graphFilters: new Set(['DREAM', 'FACT', 'CODE', 'CONCEPT', 'ENTITY'])  // Active node types
+        };
+
+        const API_BASE = window.location.origin;
+
+        // WebSocket connection
+        let ws = null;
+        let wsReconnectTimer = null;
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            initGraph();
+            initBrainwave();
+            initWebSocket();
+            fetchStatus();
+            fetchDreams();
+            fetchGraphData();
+            fetchLeaderboard();
+            
+            // Polling intervals (WebSocket provides real-time updates, but we poll for robustness)
+            setInterval(fetchStatus, 5000);
+            setInterval(fetchDreams, 10000);
+            setInterval(fetchGraphData, 12000);
+            setInterval(fetchLeaderboard, 15000);
+            setInterval(updateBrainwave, 100);
+            setInterval(tickBrainwave, 1000);  // Advance time series every second
+        });
+
+        // ============================================
+        // WEBSOCKET
+        // ============================================
+        function initWebSocket() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+            
+            try {
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    state.connected = true;
+                    updateStatusIndicator();
+                    
+                    // Start ping interval
+                    setInterval(() => {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send('ping');
+                        }
+                    }, 25000);
+                };
+                
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    } catch (e) {
+                        console.warn('Failed to parse WS message:', e);
+                    }
+                };
+                
+                ws.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    ws = null;
+                    
+                    // Reconnect after 3 seconds
+                    if (!wsReconnectTimer) {
+                        wsReconnectTimer = setTimeout(() => {
+                            wsReconnectTimer = null;
+                            initWebSocket();
+                        }, 3000);
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+                
+            } catch (e) {
+                console.warn('WebSocket not available, falling back to polling');
+            }
+        }
+
+        function handleWebSocketMessage(data) {
+            switch (data.type) {
+                case 'thinking':
+                    handleThinkingUpdate(data);
+                    break;
+                case 'dream_event':
+                    handleDreamEvent(data);
+                    break;
+                case 'heartbeat':
+                case 'pong':
+                    // Connection alive
+                    break;
+                default:
+                    console.log('Unknown WS message type:', data.type);
+            }
+        }
+
+        function handleThinkingUpdate(data) {
+            state.activeModel = data.is_generating ? data.model : null;
+            updateStatusIndicator();
+            
+            if (data.is_generating) {
+                document.getElementById('thought-spinner').style.display = 'block';
+                document.getElementById('thought-prompt').textContent = data.prompt || 'Processing...';
+                const wsModelLabel = data.model === '14B' ? 'Thinker' : 
+                                     data.model === '7B' ? 'Coder' : data.model;
+                document.getElementById('thought-model').textContent = `Model: ${wsModelLabel}`;
+                document.getElementById('thought-tokens').textContent = `Tokens: ${data.token_count}`;
+                
+                // Update thought output with animation
+                const output = document.getElementById('thought-output');
+                output.innerHTML = `<div class="thought-line generating">${escapeHtml(data.output)}</div>`;
+                output.scrollTop = output.scrollHeight;
+                
+                // Record activity in brainwave (token count as intensity)
+                const tokenIntensity = Math.min(100, data.token_count || 50);
+                state.brainwaveData[state.brainwaveData.length - 1] = tokenIntensity;
+            } else {
+                document.getElementById('thought-spinner').style.display = 'none';
+            }
+        }
+
+        function handleDreamEvent(data) {
+            if (data.event === 'generated') {
+                // Refresh dreams
+                fetchDreams();
+                
+                // Flash notification
+                const category = data.category || 'dream';
+                console.log(`New dream: ${category} (novelty: ${data.novelty})`);
+            }
+        }
+
+        // ============================================
+        // FETCH FUNCTIONS
+        // ============================================
+        async function fetchStatus() {
+            try {
+                console.log('Fetching status from:', `${API_BASE}/health`);
+                const res = await fetch(`${API_BASE}/health`);
+                const data = await res.json();
+                console.log('Health response:', data);
+                
+                state.connected = data.status === 'healthy';
+                
+                document.getElementById('stat-nodes').textContent = data.graph_nodes;
+                state.stats.nodes = data.graph_nodes;
+                
+                // Update model indicators
+                updateModelIndicators(data.models_loaded);
+                
+                // Update thinking state from health endpoint
+                if (data.thinking) {
+                    const wasGenerating = state.activeModel !== null;
+                    state.activeModel = data.thinking.active_model;
+                    
+                    if (data.thinking.is_generating) {
+                        // Show active generation
+                        document.getElementById('thought-spinner').style.display = 'block';
+                        document.getElementById('thought-prompt').textContent = 
+                            data.thinking.current_prompt || 'Processing...';
+                        const fetchModelLabel = data.thinking.active_model === '14B' ? 'Thinker' : 
+                                                data.thinking.active_model === '7B' ? 'Coder' : 
+                                                data.thinking.active_model || 'Thinker';
+                        document.getElementById('thought-model').textContent = `Model: ${fetchModelLabel}`;
+                        document.getElementById('thought-tokens').textContent = 
+                            `Tokens: ${data.thinking.token_count || 0}`;
+                        
+                        // Show output if available
+                        if (data.thinking.current_output) {
+                            const output = document.getElementById('thought-output');
+                            output.innerHTML = `<div class="thought-line generating">${escapeHtml(data.thinking.current_output)}</div>`;
+                        }
+                        
+                        // Update current brainwave slice with token activity
+                        const tokenIntensity = Math.min(100, data.thinking.token_count || 50);
+                        state.brainwaveData[state.brainwaveData.length - 1] = Math.max(
+                            state.brainwaveData[state.brainwaveData.length - 1],
+                            tokenIntensity
+                        );
+                    } else {
+                        document.getElementById('thought-spinner').style.display = 'none';
+                        
+                        // Show countdown to next dream
+                        if (data.next_dream_seconds !== null && data.next_dream_seconds !== undefined) {
+                            state.nextDreamSeconds = data.next_dream_seconds;
+                            updateCountdown();
+                        } else if (wasGenerating) {
+                            document.getElementById('thought-prompt').textContent = 'Generation complete. Waiting for next cycle...';
+                        }
+                    }
+                }
+                
+                updateStatusIndicator();
+                
+            } catch (e) {
+                console.error('fetchStatus error:', e);
+                state.connected = false;
+                updateStatusIndicator();
+            }
+        }
+
+        async function fetchGraphData() {
+            try {
+                const res = await fetch(`${API_BASE}/graph/stats`);
+                const data = await res.json();
+                
+                const hot = data.tiers.HOT || 0;
+                const warm = data.tiers.WARM || 0;
+                const cold = data.tiers.COLD || 0;
+                const total = hot + warm + cold || 1;
+                
+                state.stats.hot = hot;
+                document.getElementById('stat-hot').textContent = hot;
+                
+                // Update tier bars
+                document.getElementById('tier-hot').style.flex = hot;
+                document.getElementById('tier-warm').style.flex = warm;
+                document.getElementById('tier-cold').style.flex = cold;
+                
+                // Fetch nodes for graph
+                const nodesRes = await fetch(`${API_BASE}/graph/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ limit: 50 })
+                });
+                state.nodes = await nodesRes.json();
+                // Apply current filters before rendering
+                const filteredNodes = state.nodes.filter(n => state.graphFilters.has(n.node_type));
+                updateGraph(filteredNodes);
+                
+            } catch (e) {
+                console.error('Graph fetch failed:', e);
+            }
+        }
+
+        async function fetchDreams() {
+            try {
+                document.getElementById('timeline-spinner').style.display = 'block';
+                
+                const res = await fetch(`${API_BASE}/graph/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ node_type: 'DREAM', limit: 100 })
+                });
+                const newDreams = await res.json();
+                
+                // Check for new dreams
+                const hasNew = newDreams.length > state.dreams.length;
+                state.dreams = newDreams;
+                state.stats.dreams = newDreams.length;
+                
+                document.getElementById('stat-dreams').textContent = state.stats.dreams;
+                
+                // Calculate avg novelty
+                const novelties = newDreams.map(d => d.momentum).filter(n => n > 0);
+                state.stats.novelty = novelties.length ? 
+                    (novelties.reduce((a,b) => a+b, 0) / novelties.length).toFixed(2) : 0;
+                document.getElementById('stat-novelty').textContent = state.stats.novelty;
+                
+                renderTimeline(newDreams, hasNew);
+                
+            } catch (e) {
+                console.error('Dreams fetch failed:', e);
+            } finally {
+                document.getElementById('timeline-spinner').style.display = 'none';
+            }
+        }
+
+        async function fetchLeaderboard() {
+            try {
+                // Build query params based on filters
+                let url = `${API_BASE}/dreams?limit=20`;
+                
+                if (state.currentPriorityFilter && state.currentPriorityFilter !== 'all') {
+                    if (state.currentPriorityFilter === 'pending') {
+                        url += `&status=pending`;
+                    } else {
+                        url += `&priority=${state.currentPriorityFilter}`;
+                    }
+                }
+                
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                document.getElementById('leaderboard-total').textContent = 
+                    data.total > 0 ? `${data.total} dreams` : '';
+                
+                // Update avg novelty from scores
+                if (data.dreams && data.dreams.length > 0) {
+                    const avgScore = data.dreams.reduce((a, b) => a + b.novelty_score, 0) / data.dreams.length;
+                    document.getElementById('stat-novelty').textContent = avgScore.toFixed(2);
+                }
+                
+                renderLeaderboard(data.dreams || []);
+                
+            } catch (e) {
+                console.error('Leaderboard fetch failed:', e);
+            }
+        }
+        
+        function filterByPriority(priority) {
+            state.currentPriorityFilter = priority;
+            
+            // Update button states
+            document.querySelectorAll('.priority-filter-btn').forEach(btn => {
+                btn.classList.remove('active', 'active-high', 'active-critical');
+                if (btn.dataset.priority === priority) {
+                    btn.classList.add('active');
+                    if (priority === 'high') btn.classList.add('active-high');
+                    if (priority === 'critical') btn.classList.add('active-critical');
+                }
+            });
+            
+            // Reload with new filter
+            fetchLeaderboard();
+        }
+        
+        async function markDream(dreamId, status) {
+            try {
+                const res = await fetch(`${API_BASE}/dreams/${dreamId}/status?status=${status}`, {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    // Close modal and refresh
+                    document.getElementById('dream-modal').classList.remove('active');
+                    fetchLeaderboard();
+                    
+                    // Show brief notification
+                    const notification = document.createElement('div');
+                    notification.style.cssText = `
+                        position: fixed; bottom: 2rem; right: 2rem; 
+                        padding: 1rem 1.5rem; border-radius: 8px;
+                        background: ${status === 'applied' ? 'rgba(52, 199, 89, 0.9)' : status === 'rejected' ? 'rgba(255, 59, 48, 0.9)' : 'rgba(255, 204, 0, 0.9)'};
+                        color: white; font-weight: 500; z-index: 1000;
+                        animation: fadeIn 0.3s ease;
+                    `;
+                    notification.textContent = `Dream marked as ${status}`;
+                    document.body.appendChild(notification);
+                    setTimeout(() => notification.remove(), 3000);
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                console.error('Failed to mark dream:', e);
+                alert('Failed to update dream status');
+            }
+        }
+        
+        async function triggerReflection() {
+            try {
+                const res = await fetch(`${API_BASE}/dreams/reflect?limit=10`, { method: 'POST' });
+                const data = await res.json();
+                alert(`Reflection complete: ${data.prioritized} dreams prioritized`);
+                fetchLeaderboard();
+            } catch (e) {
+                console.error('Reflection failed:', e);
+                alert('Reflection failed');
+            }
+        }
+        
+        function downloadDream(dreamId) {
+            // Trigger file download
+            const link = document.createElement('a');
+            link.href = `${API_BASE}/dreams/${dreamId}/download`;
+            link.download = `${dreamId}.md`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function renderLeaderboard(entries) {
+            const container = document.getElementById('leaderboard');
+            
+            if (!entries || entries.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="padding: 1rem;">
+                        <p style="font-size: 0.8rem;">No dreams match this filter</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Store for click handling (full content available)
+            state.leaderboardEntries = entries;
+            
+            // Show up to 10
+            const topN = entries.slice(0, 10);
+            
+            container.innerHTML = topN.map((entry, idx) => {
+                const priority = entry.priority || 'unranked';
+                const status = entry.status || 'pending';
+                
+                // Priority badge
+                const priorityBadge = priority !== 'unranked' 
+                    ? `<span class="priority-badge priority-${priority}">${priority.toUpperCase()}</span>`
+                    : '';
+                
+                // Status badge (only show if not pending)
+                const statusBadge = status !== 'pending'
+                    ? `<span class="status-badge status-${status}">${status}</span>`
+                    : '';
+                
+                const categoryClass = entry.category.replace(/ /g, '_').toLowerCase();
+                
+                return `
+                    <div class="leaderboard-entry" onclick="showLeaderboardDetail(${idx})" style="cursor: pointer;">
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 0.3rem; min-width: 50px;">
+                            ${priorityBadge}
+                            <span class="leaderboard-score" style="font-size: 0.75rem;">${entry.novelty_score.toFixed(2)}</span>
+                        </div>
+                        <div class="leaderboard-content">
+                            <div class="leaderboard-header">
+                                <span class="timeline-category ${categoryClass}">${entry.category}</span>
+                                ${statusBadge}
+                            </div>
+                            <div class="leaderboard-text">${escapeHtml(entry.content)}</div>
+                            <div class="leaderboard-meta">${entry.source_file} · ${entry.dream_id}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function showLeaderboardDetail(index) {
+            const entry = state.leaderboardEntries?.[index];
+            if (!entry) return;
+            
+            const modal = document.getElementById('dream-modal');
+            const content = document.getElementById('dream-modal-content');
+            
+            const priority = entry.priority || 'unranked';
+            const status = entry.status || 'pending';
+            const priorityBadge = `<span class="priority-badge priority-${priority}" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;">${priority.toUpperCase()}</span>`;
+            const statusBadge = status !== 'pending' 
+                ? `<span class="status-badge status-${status}" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">${status}</span>` 
+                : '<span style="color: var(--text-muted); font-size: 0.75rem;">pending review</span>';
+            
+            const actionButtons = `
+                <div style="display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap;">
+                    ${status === 'pending' ? `
+                    <button onclick="markDream('${entry.dream_id}', 'applied')" 
+                            style="padding: 0.5rem 1rem; background: rgba(52, 199, 89, 0.3); border: 1px solid #34c759; border-radius: 6px; color: #34c759; cursor: pointer; font-weight: 500;">
+                        ✓ Mark Applied
+                    </button>
+                    <button onclick="markDream('${entry.dream_id}', 'rejected')" 
+                            style="padding: 0.5rem 1rem; background: rgba(255, 59, 48, 0.2); border: 1px solid #ff6b6b; border-radius: 6px; color: #ff6b6b; cursor: pointer; font-weight: 500;">
+                        ✗ Reject
+                    </button>
+                    <button onclick="markDream('${entry.dream_id}', 'deferred')" 
+                            style="padding: 0.5rem 1rem; background: rgba(255, 204, 0, 0.2); border: 1px solid #ffcc00; border-radius: 6px; color: #ffcc00; cursor: pointer; font-weight: 500;">
+                        ⏳ Defer
+                    </button>
+                    ` : ''}
+                    <button onclick="downloadDream('${entry.dream_id}')" 
+                            style="padding: 0.5rem 1rem; background: rgba(0, 187, 249, 0.2); border: 1px solid var(--accent-blue); border-radius: 6px; color: var(--accent-blue); cursor: pointer; font-weight: 500; margin-left: auto;">
+                        ⬇ Download .md
+                    </button>
+                </div>
+            `;
+            
+            content.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        ${priorityBadge}
+                        <h2 style="margin: 0;">${entry.category.replace(/_/g, ' ').toUpperCase()}</h2>
+                    </div>
+                    ${statusBadge}
+                </div>
+                <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">
+                    Novelty: <strong>${entry.novelty_score.toFixed(2)}</strong> | Source: ${entry.source_file}
+                </p>
+                <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;">
+                    ${entry.dream_id}
+                </p>
+                ${actionButtons}
+                <div style="background: var(--bg-secondary); padding: 1.5rem; border-radius: 8px; font-size: 0.9rem; line-height: 1.8; white-space: pre-wrap; max-height: 50vh; overflow-y: auto; margin-top: 1rem;">
+${escapeHtml(entry.content)}
+                </div>
+                <button onclick="document.getElementById('dream-modal').classList.remove('active')" 
+                        style="margin-top: 1rem; padding: 0.75rem 1.5rem; background: var(--gradient-main); border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 600;">
+                    Close
+                </button>
+            `;
+            
+            modal.classList.add('active');
+        }
+
+        // ============================================
+        // RENDERING
+        // ============================================
+        function updateStatusIndicator() {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            
+            if (state.connected) {
+                dot.className = state.activeModel ? 'status-dot thinking' : 'status-dot';
+                const modelLabel = state.activeModel === '14B' ? 'Thinker' : 
+                                   state.activeModel === '7B' ? 'Coder' : state.activeModel;
+                text.textContent = state.activeModel ? `Thinking (${modelLabel})` : 'Dreaming...';
+            } else {
+                dot.className = 'status-dot offline';
+                text.textContent = 'Offline';
+            }
+        }
+
+        function updateCountdown() {
+            if (state.nextDreamSeconds === null || state.activeModel !== null) return;
+            
+            const mins = Math.floor(state.nextDreamSeconds / 60);
+            const secs = state.nextDreamSeconds % 60;
+            const timeStr = mins > 0 
+                ? `${mins}m ${secs.toString().padStart(2, '0')}s` 
+                : `${secs}s`;
+            
+            document.getElementById('thought-prompt').innerHTML = 
+                `Next dream in <span style="color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace;">${timeStr}</span>`;
+        }
+
+        // Countdown timer - decrement every second
+        setInterval(() => {
+            if (state.nextDreamSeconds !== null && state.nextDreamSeconds > 0 && state.activeModel === null) {
+                state.nextDreamSeconds--;
+                updateCountdown();
+            }
+        }, 1000);
+
+        function updateModelIndicators(models) {
+            if (!models) return;
+            
+            const reasoning = document.getElementById('model-reasoning');
+            const coder = document.getElementById('model-coder');
+            const embed = document.getElementById('model-embed');
+            
+            reasoning.classList.toggle('active', models.reasoning);
+            coder.classList.toggle('active', models.coder);
+            embed.classList.toggle('active', models.embed);
+        }
+
+        function renderTimeline(dreams, hasNew) {
+            const timeline = document.getElementById('dream-timeline');
+            
+            if (!dreams.length) {
+                timeline.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💤</div>
+                        <p>No dreams yet...</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Sort by age (newest first - lowest age_hours)
+            const sorted = [...dreams].sort((a, b) => a.age_hours - b.age_hours);
+            
+            timeline.innerHTML = sorted.slice(0, 10).map((dream, i) => {
+                const category = dream.metadata?.category || 'dream';
+                return `
+                    <div class="timeline-item ${i === 0 && hasNew ? 'new' : ''}" onclick="showDreamDetail('${dream.id}')" style="cursor: pointer;">
+                        <div class="timeline-time">${formatAge(dream.age_hours)}</div>
+                        <span class="timeline-category ${category}">${category.replace('_', ' ')}</span>
+                        <div class="timeline-content">${escapeHtml(dream.content)}</div>
+                        <div class="timeline-meta">
+                            <span>⚡ ${dream.momentum.toFixed(2)}</span>
+                            <span>🎯 ${dream.tier}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ============================================
+        // THOUGHT STREAM
+        // ============================================
+        // Note: Real-time thought stream now comes from WebSocket
+        // The simulateThoughtStream function was removed - real data is used
+
+        function updateThoughtStream(prompt, content) {
+            const container = document.getElementById('thought-output');
+            const promptEl = document.getElementById('thought-prompt');
+            const modelEl = document.getElementById('thought-model');
+            const tokensEl = document.getElementById('thought-tokens');
+            
+            promptEl.textContent = prompt;
+            const modelName = state.activeModel === '14B' ? 'Thinker' : 
+                              state.activeModel === '7B' ? 'Coder' : 
+                              state.activeModel || 'Thinker';
+            modelEl.textContent = `Model: ${modelName}`;
+            
+            // Clear and animate new content
+            container.innerHTML = '';
+            
+            const tokens = content.split(' ');
+            let tokenCount = 0;
+            
+            tokens.forEach((token, i) => {
+                setTimeout(() => {
+                    const span = document.createElement('span');
+                    span.className = 'thought-token new';
+                    span.textContent = token + ' ';
+                    container.appendChild(span);
+                    tokenCount++;
+                    tokensEl.textContent = `Tokens: ${tokenCount}`;
+                    container.scrollTop = container.scrollHeight;
+                    
+                    // Update current brainwave slice
+                    state.brainwaveData[state.brainwaveData.length - 1] = 
+                        Math.min(100, state.brainwaveData[state.brainwaveData.length - 1] + 5);
+                    
+                }, i * 50);
+            });
+        }
+
+        function generateFakeThought() {
+            const thoughts = [
+                "Consider refactoring the error handling in this function to use a more explicit exception type. The current implementation catches all exceptions which could mask bugs.",
+                "This code block could benefit from adding input validation. Currently it assumes all inputs are valid which could lead to runtime errors.",
+                "The caching mechanism here could be optimized by using an LRU cache instead of a simple dictionary to prevent memory growth.",
+                "Adding type hints to this function would improve IDE support and catch type errors earlier in development.",
+                "This loop could be replaced with a list comprehension for better performance and readability."
+            ];
+            return thoughts[Math.floor(Math.random() * thoughts.length)];
+        }
+
+        // ============================================
+        // BRAINWAVE CHART
+        // ============================================
+        let brainwaveCtx;
+
+        function initBrainwave() {
+            const canvas = document.getElementById('brainwave-canvas');
+            brainwaveCtx = canvas.getContext('2d');
+            
+            // Set canvas size
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+
+        function updateBrainwave() {
+            if (!brainwaveCtx) return;
+            
+            const canvas = brainwaveCtx.canvas;
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // NO decay - data persists as a time series
+            // Data is pushed when activity happens, shifted to scroll left
+            
+            // Clear canvas
+            brainwaveCtx.clearRect(0, 0, width, height);
+            
+            // Draw histogram bars - each bar is a time slice
+            const barCount = state.brainwaveData.length;
+            const barWidth = Math.max(2, width / barCount);
+            const gap = 1;
+            
+            // Find max for scaling
+            const maxVal = Math.max(...state.brainwaveData, 1);
+            
+            state.brainwaveData.forEach((value, i) => {
+                const x = i * barWidth;
+                const normalizedValue = value / maxVal;
+                const barHeight = normalizedValue * (height - 4);
+                const y = height - barHeight - 2;
+                
+                if (value > 0) {
+                    // Color based on recency (newer = brighter)
+                    const recency = i / barCount;
+                    const alpha = 0.3 + recency * 0.7;
+                    
+                    // Purple for activity
+                    brainwaveCtx.fillStyle = `rgba(155, 93, 229, ${alpha})`;
+                    brainwaveCtx.fillRect(x, y, barWidth - gap, barHeight);
+                    
+                    // Cyan top highlight
+                    if (barHeight > 3) {
+                        brainwaveCtx.fillStyle = `rgba(0, 245, 212, ${alpha * 0.8})`;
+                        brainwaveCtx.fillRect(x, y, barWidth - gap, 2);
+                    }
+                }
+            });
+            
+            // Draw baseline
+            brainwaveCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            brainwaveCtx.lineWidth = 1;
+            brainwaveCtx.beginPath();
+            brainwaveCtx.moveTo(0, height - 1);
+            brainwaveCtx.lineTo(width, height - 1);
+            brainwaveCtx.stroke();
+            
+            // Show total tokens generated in session
+            const totalTokens = state.brainwaveData.reduce((a, b) => a + b, 0);
+            document.getElementById('brainwave-rate').textContent = Math.round(totalTokens);
+        }
+        
+        // Called periodically to add a time slice (even if no activity)
+        function tickBrainwave() {
+            // Push current token rate (0 if idle)
+            const currentRate = state.activeModel ? (Math.random() * 30 + 20) : 0;
+            state.brainwaveData.push(currentRate);
+            state.brainwaveData.shift();
+        }
+
+        function addBrainwaveSpike() {
+            for (let i = 0; i < 20; i++) {
+                setTimeout(() => {
+                    state.brainwaveData.push(Math.random() * 80 + 20);
+                    state.brainwaveData.shift();
+                }, i * 50);
+            }
+        }
+
+        // ============================================
+        // GRAPH VISUALIZATION
+        // ============================================
+        let svg, simulation;
+
+        function initGraph() {
+            const container = document.getElementById('graph-canvas');
+            const width = container.clientWidth || 400;
+            const height = container.clientHeight || 300;
+            
+            svg = d3.select('#graph-canvas')
+                .attr('width', width)
+                .attr('height', height);
+            
+            simulation = d3.forceSimulation()
+                .force('link', d3.forceLink().id(d => d.id).distance(50))
+                .force('charge', d3.forceManyBody().strength(-80))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(25));
+        }
+
+        function updateGraph(nodes) {
+            if (!nodes.length || !svg) return;
+            
+            const container = document.getElementById('graph-canvas');
+            const width = container.clientWidth || 400;
+            const height = container.clientHeight || 300;
+            
+            // Create links - connect chronologically adjacent nodes (forms a timeline chain)
+            const links = [];
+            const sortedNodes = [...nodes].sort((a, b) => b.age_hours - a.age_hours);
+            for (let i = 0; i < sortedNodes.length - 1; i++) {
+                links.push({ 
+                    source: sortedNodes[i].id, 
+                    target: sortedNodes[i + 1].id,
+                    strength: 0.3
+                });
+            }
+            // Add some cross-links for nodes with same category
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 2; j < Math.min(i + 5, nodes.length); j++) {
+                    if (nodes[i].metadata?.category === nodes[j].metadata?.category) {
+                        links.push({ source: nodes[i].id, target: nodes[j].id, strength: 0.1 });
+                    }
+                }
+            }
+            
+            // Update simulation
+            simulation.nodes(nodes);
+            simulation.force('link').links(links);
+            simulation.alpha(0.3).restart();
+            
+            // Draw links - more visible
+            svg.selectAll('.link').remove();
+            svg.selectAll('.link')
+                .data(links)
+                .enter()
+                .append('line')
+                .attr('class', 'link')
+                .style('stroke', 'rgba(0, 245, 212, 0.3)')
+                .style('stroke-width', d => d.strength > 0.2 ? 2 : 1);
+            
+            // Draw nodes with animation
+            svg.selectAll('.node').remove();
+            svg.selectAll('.node')
+                .data(nodes)
+                .enter()
+                .append('circle')
+                .attr('class', 'node')
+                .attr('r', 0)
+                .style('fill', d => getNodeColor(d))
+                .style('cursor', 'pointer')
+                .style('stroke', 'rgba(255,255,255,0.3)')
+                .style('stroke-width', 1)
+                .style('filter', d => d.tier === 'HOT' ? 'drop-shadow(0 0 8px rgba(241, 91, 181, 0.6))' : 'none')
+                .transition()
+                .duration(500)
+                .attr('r', d => 5 + d.momentum * 10);
+            
+            // Update positions
+            simulation.on('tick', () => {
+                svg.selectAll('.link')
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+                
+                svg.selectAll('.node')
+                    .attr('cx', d => Math.max(15, Math.min(width - 15, d.x)))
+                    .attr('cy', d => Math.max(15, Math.min(height - 15, d.y)));
+            });
+        }
+
+        function getNodeColor(node) {
+            const colors = {
+                'DREAM': '#9b5de5',
+                'FACT': '#00f5d4',
+                'CONCEPT': '#fee440',
+                'CODE': '#f15bb5',
+                'ENTITY': '#ff6b35'
+            };
+            return colors[node.node_type] || '#8888a0';
+        }
+
+        function toggleGraphFilter(nodeType) {
+            // Toggle the filter
+            if (state.graphFilters.has(nodeType)) {
+                state.graphFilters.delete(nodeType);
+            } else {
+                state.graphFilters.add(nodeType);
+            }
+            
+            // Update legend UI
+            document.querySelectorAll('.legend-item').forEach(item => {
+                const type = item.dataset.type;
+                if (state.graphFilters.has(type)) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+            
+            // Re-render graph with filtered nodes
+            const filteredNodes = state.nodes.filter(n => state.graphFilters.has(n.node_type));
+            updateGraph(filteredNodes);
+        }
+
+        // ============================================
+        // HELPERS
+        // ============================================
+        function formatAge(hours) {
+            if (hours < 1) return 'just now';
+            if (hours < 24) return `${Math.round(hours)}h ago`;
+            return `${Math.round(hours / 24)}d ago`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
+        function showDreamDetail(id) {
+            const dream = state.dreams.find(d => d.id === id);
+            if (!dream) return;
+            
+            // Try to find full content in leaderboard (which stores complete text)
+            const leaderboardMatch = state.leaderboardEntries?.find(e => 
+                dream.content.startsWith(e.content.substring(0, 100)) ||
+                e.content.startsWith(dream.content.substring(0, 100))
+            );
+            
+            // Use leaderboard content if available (full), otherwise graph content (truncated)
+            const fullContent = leaderboardMatch?.content || dream.content;
+            const hasFullContent = !!leaderboardMatch;
+            
+            const modal = document.getElementById('dream-modal');
+            const content = document.getElementById('dream-modal-content');
+            
+            content.innerHTML = `
+                <h2 style="margin-bottom: 1rem;">${dream.metadata?.category?.replace(/_/g, ' ').toUpperCase() || 'DREAM'}</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                    Generated ${formatAge(dream.age_hours)} | Momentum: ${dream.momentum.toFixed(2)} | ${dream.tier}
+                    ${!hasFullContent ? '<span style="color: var(--accent-amber);"> (truncated)</span>' : ''}
+                </p>
+                <div style="background: var(--bg-secondary); padding: 1.5rem; border-radius: 8px; font-size: 0.9rem; line-height: 1.8; white-space: pre-wrap; max-height: 60vh; overflow-y: auto;">
+${escapeHtml(fullContent)}
+                </div>
+                <button onclick="document.getElementById('dream-modal').classList.remove('active')" 
+                        style="margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: var(--gradient-main); border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 600;">
+                    Close
+                </button>
+            `;
+            
+            modal.classList.add('active');
+        }
+
+        // Close modal on background click
+        document.getElementById('dream-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'dream-modal') {
+                e.target.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>

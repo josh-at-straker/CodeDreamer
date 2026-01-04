@@ -1,0 +1,247 @@
+"""
+Proactive Memory - Anticipates context before it's needed.
+
+Inspired by ZetaZero's proactive fetching:
+- Predicts what context will be useful based on current focus
+- Uses graph edges, imports, and TRM to build anticipatory context
+- Reduces "cold start" for each dream cycle
+"""
+
+import ast
+import logging
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from .config import settings
+from .graph import KnowledgeGraph, NodeType, get_graph
+from .trm import TRMStream, get_trm
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ProactiveContext:
+    """Context package assembled proactively."""
+
+    source_file: str
+    related_files: list[str] = field(default_factory=list)
+    imported_modules: list[str] = field(default_factory=list)
+    graph_context: list[str] = field(default_factory=list)
+    trm_context: str = ""
+    confidence: float = 0.0
+
+    def to_prompt_section(self) -> str:
+        """Format as a prompt section for the LLM."""
+        sections = []
+
+        if self.imported_modules:
+            sections.append(
+                f"**Imports**: This file uses: {', '.join(self.imported_modules[:10])}"
+            )
+
+        if self.related_files:
+            sections.append(
+                f"**Related Files**: Often seen with: {', '.join(self.related_files[:5])}"
+            )
+
+        if self.graph_context:
+            sections.append(
+                "**Previous Insights**:\n" + "\n".join(f"- {c}" for c in self.graph_context[:3])
+            )
+
+        if self.trm_context:
+            sections.append(f"**Recent Thoughts**:\n{self.trm_context}")
+
+        if not sections:
+            return ""
+
+        return "## Proactive Context (anticipated relevant info)\n\n" + "\n\n".join(sections)
+
+
+class ProactiveMemory:
+    """
+    Anticipates and pre-fetches context before it's needed.
+
+    Uses multiple signals:
+    1. Import analysis - what modules does this file depend on?
+    2. Graph neighbors - what's connected to previous dreams about this file?
+    3. TRM stream - what recent insights might be relevant?
+    4. Co-occurrence - what files are often mentioned together?
+    """
+
+    def __init__(
+        self,
+        graph: KnowledgeGraph | None = None,
+        trm: TRMStream | None = None,
+    ) -> None:
+        self._graph = graph or get_graph()
+        self._trm = trm or get_trm()
+        self._file_cooccurrence: dict[str, set[str]] = {}
+        self._import_cache: dict[str, list[str]] = {}
+
+    def get_context(self, source_file: str, code_content: str | None = None) -> ProactiveContext:
+        """
+        Build proactive context for a given source file.
+
+        Args:
+            source_file: Path to the file being analyzed.
+            code_content: Optional code content (avoids re-reading file).
+
+        Returns:
+            ProactiveContext with anticipated relevant information.
+        """
+        ctx = ProactiveContext(source_file=source_file)
+
+        # 1. Extract imports from the code
+        if code_content:
+            ctx.imported_modules = self._extract_imports(code_content)
+        elif Path(source_file).exists():
+            try:
+                content = Path(source_file).read_text(errors="ignore")
+                ctx.imported_modules = self._extract_imports(content)
+            except Exception as e:
+                logger.debug(f"Could not read {source_file}: {e}")
+
+        # 2. Find related files from graph (nodes about same file)
+        ctx.related_files = self._find_related_files(source_file)
+
+        # 3. Get relevant graph context (previous insights about this file)
+        ctx.graph_context = self._get_graph_context(source_file)
+
+        # 4. Get TRM context (recent relevant thoughts)
+        ctx.trm_context = self._get_trm_context(source_file)
+
+        # Calculate confidence based on how much context we found
+        signals = [
+            len(ctx.imported_modules) > 0,
+            len(ctx.related_files) > 0,
+            len(ctx.graph_context) > 0,
+            len(ctx.trm_context) > 0,
+        ]
+        ctx.confidence = sum(signals) / len(signals)
+
+        logger.debug(
+            f"Proactive context for {Path(source_file).name}: "
+            f"confidence={ctx.confidence:.2f}, "
+            f"imports={len(ctx.imported_modules)}, "
+            f"related={len(ctx.related_files)}, "
+            f"graph={len(ctx.graph_context)}"
+        )
+
+        return ctx
+
+    def _extract_imports(self, code: str) -> list[str]:
+        """Extract import statements from Python code."""
+        imports = []
+
+        try:
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        imports.append(alias.name.split(".")[0])
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        imports.append(node.module.split(".")[0])
+        except SyntaxError:
+            # Fallback to regex for non-Python or invalid syntax
+            import_pattern = r"^(?:from|import)\s+([a-zA-Z_][a-zA-Z0-9_]*)"
+            for match in re.finditer(import_pattern, code, re.MULTILINE):
+                imports.append(match.group(1))
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique = []
+        for imp in imports:
+            if imp not in seen:
+                seen.add(imp)
+                unique.append(imp)
+
+        return unique
+
+    def _find_related_files(self, source_file: str) -> list[str]:
+        """Find files that are often mentioned alongside this one."""
+        related = set()
+        source_name = Path(source_file).name
+
+        # Look at graph nodes about this file and find their neighbors
+        for node in self._graph._nodes.values():
+            node_source = node.metadata.get("source") or node.metadata.get("source_file", "")
+            if source_name in str(node_source):
+                # Get neighbors of this node
+                try:
+                    neighbors = list(self._graph._graph.neighbors(node.id))
+                    for neighbor_id in neighbors:
+                        neighbor = self._graph._nodes.get(neighbor_id)
+                        if neighbor:
+                            neighbor_source = (
+                                neighbor.metadata.get("source")
+                                or neighbor.metadata.get("source_file", "")
+                            )
+                            if neighbor_source and source_name not in str(neighbor_source):
+                                related.add(Path(str(neighbor_source)).name)
+                except Exception:
+                    pass
+
+        return list(related)[:5]
+
+    def _get_graph_context(self, source_file: str) -> list[str]:
+        """Get previous insights from the graph about this file."""
+        context = []
+        source_name = Path(source_file).name
+
+        # Find nodes about this file, sorted by momentum
+        relevant_nodes = []
+        for node in self._graph._nodes.values():
+            node_source = node.metadata.get("source") or node.metadata.get("source_file", "")
+            if source_name in str(node_source):
+                relevant_nodes.append(node)
+
+        # Sort by momentum and take top 3
+        relevant_nodes.sort(key=lambda n: n.momentum, reverse=True)
+
+        for node in relevant_nodes[:3]:
+            # Truncate content for context
+            snippet = node.content[:150].replace("\n", " ").strip()
+            if snippet:
+                context.append(f"[{node.node_type.name}] {snippet}...")
+
+        return context
+
+    def _get_trm_context(self, source_file: str) -> str:
+        """Get relevant TRM fragments for this file."""
+        source_name = Path(source_file).name
+
+        # Get TRM fragments, filter for relevance
+        fragments = self._trm.get_relevant(source_file, max_fragments=2)
+
+        if fragments:
+            return "\n".join(f"- {f.content[:100]}..." for f in fragments)
+        return ""
+
+    def record_cooccurrence(self, file1: str, file2: str) -> None:
+        """Record that two files appeared together (for future predictions)."""
+        name1 = Path(file1).name
+        name2 = Path(file2).name
+
+        if name1 not in self._file_cooccurrence:
+            self._file_cooccurrence[name1] = set()
+        if name2 not in self._file_cooccurrence:
+            self._file_cooccurrence[name2] = set()
+
+        self._file_cooccurrence[name1].add(name2)
+        self._file_cooccurrence[name2].add(name1)
+
+
+# Singleton instance
+_proactive_memory: ProactiveMemory | None = None
+
+
+def get_proactive_memory() -> ProactiveMemory:
+    """Get or create the ProactiveMemory singleton."""
+    global _proactive_memory
+    if _proactive_memory is None:
+        _proactive_memory = ProactiveMemory()
+    return _proactive_memory
+

@@ -1,0 +1,77 @@
+# CodeDreamer - Docker Compose
+#
+# Self-contained GPU-accelerated code improvement system.
+# Runs overnight, generates improvement suggestions for your codebase.
+#
+# Usage:
+#   1. Copy .env.example to .env and configure
+#   2. docker compose up -d
+#   3. View dashboard at http://localhost:8080
+#   4. Check dreams in ./dreams/ directory
+
+services:
+  codedreamer:
+    build: .
+    container_name: codedreamer
+    restart: unless-stopped
+    
+    ports:
+      - "${PORT:-8080}:8080"
+    
+    volumes:
+      # Model directory (required)
+      - ${MODEL_PATH:?Set MODEL_PATH in .env}:/models:ro
+      
+      # Codebase to analyze (required)
+      - ${CODEBASE_PATH:?Set CODEBASE_PATH in .env}:/codebase:ro
+      
+      # Persistent storage
+      - ./dreams:/app/dreams
+      - ./data:/app/data
+    
+    environment:
+      # === Model Configuration ===
+      # Primary reasoning model (required)
+      - DREAMER_MODEL_PATH=/models/${MODEL_FILE:-model.gguf}
+      # Optional dedicated coder model (7B recommended)
+      - DREAMER_CODER_MODEL_PATH=/models/${CODER_MODEL_FILE:-}
+      # Optional embedding model
+      - DREAMER_EMBED_MODEL_PATH=/models/${EMBED_MODEL_FILE:-}
+      
+      # === GPU Settings ===
+      - DREAMER_N_GPU_LAYERS=${GPU_LAYERS:-99}
+      - DREAMER_N_CTX=${CTX_SIZE:-8192}
+      
+      # === Deep Reasoning Token Limits ===
+      # Higher values = deeper thinking (requires more VRAM)
+      - DREAMER_REASONING_MAX_TOKENS=${REASONING_MAX_TOKENS:-4000}
+      - DREAMER_CODER_MAX_TOKENS=${CODER_MAX_TOKENS:-3000}
+      
+      # === Context Size Settings ===
+      # Higher = more code context per chunk (better understanding)
+      - DREAMER_CHUNK_SIZE=${CHUNK_SIZE:-3000}
+      - DREAMER_PROMPT_CONTEXT_LIMIT=${PROMPT_CONTEXT_LIMIT:-4000}
+      
+      # === Dream Cycle Settings ===
+      - DREAMER_CODEBASE_PATH=/codebase
+      - DREAMER_DAEMON_MODE=true
+      - DREAMER_DREAM_INTERVAL_SEC=${DREAM_INTERVAL:-300}
+      - DREAMER_DECAY_INTERVAL_SEC=${DECAY_INTERVAL:-3600}
+      - DREAMER_DREAM_TEMPERATURE=${DREAM_TEMP:-0.8}
+      - DREAMER_NOVELTY_THRESHOLD=${NOVELTY_THRESHOLD:-0.4}
+      
+      # === Logging ===
+      - DREAMER_LOG_LEVEL=${LOG_LEVEL:-INFO}
+    
+    # GPU support (NVIDIA)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  dreams:
+  data:

@@ -1,0 +1,39 @@
+# Git
+.git/
+.gitignore
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+
+# Pixi (keep pixi.lock for reproducible builds)
+.pixi/
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Tests (not needed in runtime image)
+tests/
+
+# Documentation
+*.md
+!README.md
+
+# Local development files
+.env
+.env.local
+dreams/
+*.db
+
+# Docker
+Dockerfile
+docker-compose.yaml
+
+

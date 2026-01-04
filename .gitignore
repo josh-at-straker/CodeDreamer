@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Pixi (keep pixi.lock for reproducible builds)
+.pixi/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Type checking
+.mypy_cache/
+
+# Linting
+.ruff_cache/
+
+# Local development
+.env
+.env.local
+
+# CodeDreamer runtime data
+dreams/
+data/
+*.db
+codedreamer.db/
+graph.json
+*.gguf
+
+# Session/dev files
+SESSION_LOG.md
+
+# macOS
+.DS_Store
