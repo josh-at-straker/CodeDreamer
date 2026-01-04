@@ -4,6 +4,13 @@ Autonomous code improvement suggestions via LLM dreaming.
 
 Point it at a codebase. Let it dream while you sleep. Wake up to actionable improvement suggestions.
 
+
+## To do:
+- CRUD the code
+- Fix for STR formats (src as code)
+- Remove unused functions
+- Re-run CodeDreamer over codebase. 
+
 ## Quick Start (Docker)
 
 ```bash
