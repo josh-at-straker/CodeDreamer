@@ -238,9 +238,9 @@ CodeDreamer is designed to run **entirely locally** with no external services:
 
 No API keys, no cloud dependencies, no data leaving your machine.
 
-## ZetaZero Heritage
+## Heritage
 
-CodeDreamer implements concepts from the ZetaZero cognitive architecture:
+CodeDreamer implements concepts from cognitive architecture:
 
 | Concept | What It Does |
 |---------|--------------|
