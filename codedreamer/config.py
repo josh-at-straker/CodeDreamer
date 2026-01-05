@@ -95,6 +95,24 @@ class Settings(BaseSettings):
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(default="INFO")
 
+    # Ollama settings (used when OLLAMA_HOST is set)
+    ollama_host: str = Field(
+        default="http://localhost:11434",
+        description="Ollama API endpoint",
+    )
+    ollama_reasoning_model: str = Field(
+        default="qwen2.5-coder:32b",
+        description="Ollama model for reasoning/analysis",
+    )
+    ollama_coder_model: str = Field(
+        default="qwen2.5-coder:7b",
+        description="Ollama model for code generation",
+    )
+    ollama_embed_model: str = Field(
+        default="nomic-embed-text",
+        description="Ollama model for embeddings",
+    )
+
     @field_validator("model_path", "coder_model_path", "embed_model_path", mode="before")
     @classmethod
     def resolve_path(cls, v: str | Path | None) -> Path | None:
