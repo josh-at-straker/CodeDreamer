@@ -97,18 +97,24 @@ class ProactiveMemory:
         # Note: code_content may be a chunk that doesn't include imports
         # So we always try to read the full file for imports
         file_path = Path(source_file)
+        logger.debug(f"Proactive: source_file={source_file}, exists={file_path.exists()}")
+        
         if file_path.exists():
             try:
                 full_content = file_path.read_text(errors="ignore")
+                logger.debug(f"Read {len(full_content)} chars from {source_file}")
                 ctx.imported_modules = self._extract_imports(full_content)
             except Exception as e:
-                logger.debug(f"Could not read {source_file}: {e}")
+                logger.warning(f"Could not read {source_file}: {e}")
                 # Fallback to chunk content
                 if code_content:
                     ctx.imported_modules = self._extract_imports(code_content)
         elif code_content:
             # File doesn't exist locally (Docker path), try chunk
+            logger.debug(f"File not found, using chunk content ({len(code_content)} chars)")
             ctx.imported_modules = self._extract_imports(code_content)
+        else:
+            logger.warning(f"No source available for import extraction: {source_file}")
 
         # 2. Find related files from graph (nodes about same file)
         ctx.related_files = self._find_related_files(source_file)
@@ -149,6 +155,10 @@ class ProactiveMemory:
     def _extract_imports(self, code: str) -> list[str]:
         """Extract import statements from Python code."""
         imports = []
+        
+        if not code or len(code) < 10:
+            logger.debug(f"Code too short for import extraction: {len(code) if code else 0} chars")
+            return imports
 
         try:
             tree = ast.parse(code)
@@ -159,11 +169,14 @@ class ProactiveMemory:
                 elif isinstance(node, ast.ImportFrom):
                     if node.module:
                         imports.append(node.module.split(".")[0])
-        except SyntaxError:
+            logger.debug(f"AST extracted {len(imports)} imports")
+        except SyntaxError as e:
             # Fallback to regex for non-Python or invalid syntax
+            logger.debug(f"AST parse failed ({e}), using regex fallback")
             import_pattern = r"^(?:from|import)\s+([a-zA-Z_][a-zA-Z0-9_]*)"
             for match in re.finditer(import_pattern, code, re.MULTILINE):
                 imports.append(match.group(1))
+            logger.debug(f"Regex extracted {len(imports)} imports")
 
         # Deduplicate while preserving order
         seen = set()

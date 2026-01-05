@@ -72,18 +72,19 @@ class DreamValidator:
     """
 
     # Fallback domain terms - used if no project terms available
-    # These are intentionally HIGH-SIGNAL terms, not generic ones
+    # These should be SPECIFIC patterns, not common programming words
+    # Avoid: handler, manager, client, error, config - too common!
     FALLBACK_DOMAIN_TERMS: ClassVar[list[str]] = [
-        # Architectural patterns (specific)
-        "singleton", "factory", "observer", "decorator", "middleware",
-        # Performance-specific
-        "cache", "memoize", "lazy", "batch", "throttle", "debounce",
-        # Concurrency-specific
-        "async", "await", "concurrent", "parallel", "lock", "mutex", "semaphore",
-        # Error handling patterns
-        "retry", "fallback", "circuit", "timeout", "backoff",
-        # Data patterns
-        "serialize", "deserialize", "marshal", "parse", "validate",
+        # Specific architectural patterns
+        "singleton", "factory", "observer", "decorator", "middleware", "facade",
+        # Specific performance patterns  
+        "memoize", "memoization", "throttle", "debounce", "pooling",
+        # Specific concurrency patterns
+        "mutex", "semaphore", "deadlock", "race condition",
+        # Specific error patterns
+        "circuit breaker", "backoff", "retry strategy",
+        # Specific data patterns
+        "serialization", "deserialization", "marshalling",
     ]
 
     # Category keywords for classification
@@ -158,17 +159,19 @@ class DreamValidator:
                         term_counts[filename.lower()] += 1
                 
                 # Extract from chunk names (function/class names)
+                # Only use FULL names, not parts - avoids common words like "handler", "manager"
                 name = metadata.get("name", "")
-                if name and len(name) >= 4:
-                    # Convert CamelCase to lowercase
-                    name_lower = re.sub(r'([A-Z])', r'_\1', name).lower().strip('_')
-                    # Split on underscores and take meaningful parts
-                    for part in name_lower.split('_'):
-                        if len(part) >= 4 and part not in {"self", "init", "main", "test", "none"}:
-                            term_counts[part] += 1
-                    # Also track the full name
-                    if len(name) >= 4:
-                        term_counts[name.lower()] += 1
+                if name and len(name) >= 6:  # Minimum 6 chars to filter common words
+                    # Common words to exclude (appear in too many dreams)
+                    common_words = {
+                        "handler", "manager", "client", "server", "config", "settings",
+                        "error", "message", "response", "request", "session", "socket",
+                        "service", "controller", "model", "schema", "utils", "helper",
+                        "async", "await", "class", "function", "method", "return",
+                    }
+                    name_lower = name.lower()
+                    if name_lower not in common_words:
+                        term_counts[name_lower] += 1
             
             # Take top 50 most common terms (these are project-specific)
             sorted_terms = sorted(term_counts.items(), key=lambda x: x[1], reverse=True)
