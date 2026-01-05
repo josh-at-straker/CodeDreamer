@@ -1,0 +1,23 @@
+---
+description: Always use this rule - Always update changelog.md with every change using the correct format, attributing to the current git username and today's date.
+globs:
+alwaysApply: true
+---
+
+# Changelog Rule
+
+Whenever any file in this project is changed or created, automatically update `docs/changelog.md` under the `[Unreleased]` section as follows:
+
+- Add a bullet describing what was changed.
+- Include the change date in `YYYY-MM-DD` format, UTC.
+- Attribute the change to the current git user (use `git config user.name`).
+- Keep it short, and to the point. Avoid too much detail.
+
+Format example:
+
+- [Added|Changed|Fixed]: Brief description (username, YYYY-MM-DD)
+
+
+Create the changelog.md file if missing. 
+
+The file will be used by LLM's as context tracking, so detail is advised as long as it is on just one bullet point. Do not include code in the changelog.

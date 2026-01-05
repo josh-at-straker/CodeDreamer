@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     # Model parameters
     n_gpu_layers: int = Field(default=99, ge=0, description="Layers to offload to GPU")
-    n_ctx: int = Field(default=4096, ge=512, description="Context window size")
+    n_ctx: int = Field(default=32768, ge=512, description="Context window size (Qwen2.5 supports 128K)")
     n_threads: int = Field(default=4, ge=1, description="CPU threads for inference")
 
     # Adaptive context sizing (Dream #2: dream_20251228_142330_code_fix.md)
@@ -58,19 +58,20 @@ class Settings(BaseSettings):
     max_dreams_per_cycle: int = Field(default=5, ge=1, description="Max dreams per cycle")
 
     # Deep reasoning token limits (higher = deeper thinking)
+    # Optimized for Qwen2.5-Coder which supports 128K context
     reasoning_max_tokens: int = Field(
-        default=4000, ge=256, description="Max tokens for reasoning/analysis stage"
+        default=8000, ge=256, description="Max tokens for reasoning/analysis stage"
     )
     coder_max_tokens: int = Field(
-        default=3000, ge=256, description="Max tokens for code generation stage"
+        default=6000, ge=256, description="Max tokens for code generation stage"
     )
 
     # Chunk sizing (higher = more context per chunk, but more tokens used)
     chunk_size: int = Field(
-        default=3000, ge=500, description="Target size for code chunks in characters"
+        default=5000, ge=500, description="Target size for code chunks in characters"
     )
     prompt_context_limit: int = Field(
-        default=4000, ge=1000, description="Max chars of code context in prompts"
+        default=12000, ge=1000, description="Max chars of code context in prompts"
     )
 
     # Validation thresholds

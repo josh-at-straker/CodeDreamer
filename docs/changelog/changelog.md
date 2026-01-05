@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- [Changed]: Optimized token limits for deeper analysis - n_ctx=32K, reasoning=8K, coder=6K, prompt_context=12K, chunk=5K (Indy Nagpal, 2026-01-06)
 - [Added]: Ollama-compatible LLM client (`llm_ollama.py`) for Mac/Docker deployments without CUDA (Indy Nagpal, 2026-01-05)
 - [Added]: Ollama-compatible model orchestra (`models_ollama.py`) supporting multi-model architecture via Ollama API (Indy Nagpal, 2026-01-05)
 - [Added]: Docker setup for Ollama backend with `Dockerfile.ollama` (Indy Nagpal, 2026-01-05)
