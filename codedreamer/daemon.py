@@ -79,6 +79,9 @@ class DreamDaemon:
         # Index codebase if provided
         if self.codebase_path:
             self._index_codebase()
+        
+        # Initialize project-specific domain terms for novelty scoring
+        self.validator.initialize_project_terms(self.indexer)
 
         # Check we have something to dream about
         if self.indexer.collection.count() == 0:

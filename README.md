@@ -120,6 +120,10 @@ DREAMER_NOVELTY_THRESHOLD=0.4       # Min score to save
 # === Paths ===
 DREAMER_CODEBASE_PATH=/path/to/project
 DREAMER_DREAMS_DIR=./dreams
+
+# === Indexing ===
+DREAMER_EXCLUDE_PATTERNS=tests,test_*,*_test.py,conftest.py  # Skip test files
+DREAMER_CLEAR_INDEX_ON_START=false  # Set true to wipe index on each startup
 ```
 
 ## Commands

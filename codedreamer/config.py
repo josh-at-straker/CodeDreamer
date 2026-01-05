@@ -92,6 +92,16 @@ class Settings(BaseSettings):
         description="Path to codebase to analyze. Required for daemon mode.",
     )
 
+    # Indexing exclusions (comma-separated patterns)
+    exclude_patterns: str = Field(
+        default="tests,test_*,*_test.py,conftest.py",
+        description="Comma-separated patterns to exclude from indexing (directories or file globs)",
+    )
+    clear_index_on_start: bool = Field(
+        default=False,
+        description="Clear and rebuild index on every startup (useful when changing exclude patterns)",
+    )
+
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(default="INFO")
 

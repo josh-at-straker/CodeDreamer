@@ -62,6 +62,9 @@ services:
       
       # === Logging ===
       - DREAMER_LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+      # === Environment Variables ===
+      - DREAMER_CLEAR_INDEX_ON_START=${CLEAR_INDEX_ON_START:-false}
     
     # GPU support (NVIDIA)
     deploy:

@@ -4,7 +4,7 @@ Temporal Recursive Memory (TRM) Stream.
 Maintains a stream of thought that carries forward between dream cycles,
 enabling compound insights rather than isolated observations.
 
-Inspired by ZetaZero's TRM module:
+Features:
 - Applies temporal decay: Z(t) = Z₀ · e^(-λt)
 - Maintains continuity between cognitive cycles
 - Enables "building on previous insights"

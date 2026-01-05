@@ -344,6 +344,12 @@ def _run_dream_cycle_impl() -> None:
     conductor = get_conductor()
     graph = get_graph()
     validator = get_validator()  # Use shared instance for deduplication
+    
+    # Initialize indexer first (needed for project terms)
+    indexer = CodebaseIndexer()
+    
+    # Initialize project-specific domain terms for novelty scoring
+    validator.initialize_project_terms(indexer)
 
     # Get drill state for deep dive drilling
     from .drill_state import get_drill_state, get_random_graph_context
@@ -359,9 +365,6 @@ def _run_dream_cycle_impl() -> None:
         if graph_context:
             using_graph_jump = True
             drill.record_graph_jump()
-
-    # Get a chunk to analyze
-    indexer = CodebaseIndexer()
     
     # If drilling, try to stay on same file
     chunk = None
@@ -410,6 +413,12 @@ def _run_dream_cycle_impl() -> None:
     proactive = get_proactive_memory()
     proactive_ctx = proactive.get_context(chunk_source, chunk_content)
     proactive_section = proactive_ctx.to_prompt_section()
+    
+    # Log if proactive context is being used
+    if proactive_section:
+        logger.info(f"Proactive context included ({len(proactive_section)} chars)")
+    else:
+        logger.warning("No proactive context available - cold start?")
 
     # === STAGE 1: REASONING MODEL (14B) - Deep Analysis ===
     thinking.active_model = "14B"
@@ -634,6 +643,16 @@ Output ONLY the improved code, no explanations:
             filename = f"dream_{ts}_{category}.md"
             filepath = dream_dir / filename
 
+            # Build theme warnings section if any
+            warnings_section = ""
+            if validated.theme_warnings:
+                warnings_list = "\n".join(f"- {w}" for w in validated.theme_warnings)
+                warnings_section = f"""
+> **Theme Repetition Warning**
+> {warnings_list}
+
+"""
+
             content = f"""# {validated.category.title()}
 
 **Generated**: {datetime.now().isoformat()}
@@ -641,7 +660,7 @@ Output ONLY the improved code, no explanations:
 **Source File**: {chunk_source}
 
 ---
-
+{warnings_section}
 {result.output}
 
 ---
@@ -789,7 +808,17 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         if codebase and codebase.exists():
             from .indexer import CodebaseIndexer
             indexer = CodebaseIndexer()
-            # Check if index is empty
+            
+            # Clear index on start if configured (useful when changing exclude patterns)
+            if settings.clear_index_on_start:
+                logger.info("Clearing index on startup (DREAMER_CLEAR_INDEX_ON_START=true)")
+                indexer.clear()
+                # Also clear the graph to start completely fresh
+                graph = get_graph()
+                graph.clear()
+                logger.info("Index and graph cleared")
+            
+            # Check if index is empty and needs rebuilding
             try:
                 chunk = indexer.get_random_chunk()
                 if not chunk:
@@ -1373,5 +1402,6 @@ def run_server(
         port=port,
         reload=reload,
         log_level=settings.log_level.lower(),
+        access_log=False,  # Disable verbose HTTP request logs
     )
 

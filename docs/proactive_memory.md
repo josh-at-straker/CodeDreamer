@@ -1,6 +1,6 @@
 # Proactive Memory
 
-Inspired by ZetaZero's proactive fetching mechanism. Instead of waiting for the model to request context, Proactive Memory anticipates what will be useful and pre-fetches it.
+Instead of waiting for the model to request context, Proactive Memory anticipates what will be useful and pre-fetches it.
 
 ## How It Works
 

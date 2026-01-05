@@ -688,6 +688,18 @@ class KnowledgeGraph:
         self.path.write_text(json.dumps(data, indent=2))
         logger.info(f"Saved graph: {len(self._nodes)} nodes, {self._graph.number_of_edges()} edges")
 
+    def clear(self) -> None:
+        """Clear all nodes and edges from the graph."""
+        self._nodes.clear()
+        self._graph.clear()
+        self._node_counter = 0
+        
+        # Also delete persisted file
+        if self.path.exists():
+            self.path.unlink()
+        
+        logger.info("Graph cleared")
+
     def _load(self) -> None:
         """Load graph from disk."""
         try:

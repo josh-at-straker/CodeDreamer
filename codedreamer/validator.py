@@ -5,18 +5,27 @@ Implements the "lucid check" - self-validation of dream quality,
 and novelty tracking to avoid repetitive suggestions.
 
 Enhanced with semantic deduplication to reduce noise in dream generation.
+
+Enhanced repetition handling:
+- Time-based theme decay (24h default)
+- Exponential penalty for over-threshold themes
+- Project-aware domain term extraction
 """
 
 import hashlib
 import logging
+import re
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from .config import settings
 from .llm import LLMClient
+
+if TYPE_CHECKING:
+    from .indexer import CodebaseIndexer
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +39,7 @@ class ValidationResult:
     category: str
     rejection_reason: str | None = None
     was_refined: bool = False  # True if critic loop refined the dream
+    theme_warnings: list[str] | None = None  # Warnings about approaching theme limits
 
 
 @dataclass
@@ -52,36 +62,28 @@ class ThemeEntry:
 
 
 class DreamValidator:
-    """Validates dream quality and tracks novelty."""
+    """
+    Validates dream quality and tracks novelty.
+    
+    Features:
+    - Exponential penalty for themes exceeding repetition threshold
+    - Time-based theme decay (themes expire after 24 hours)
+    - Project-aware domain terms extracted from indexed codebase
+    """
 
-    # Domain terms to track for novelty scoring
-    DOMAIN_TERMS: ClassVar[list[str]] = [
-        "refactor",
-        "optimize",
-        "cache",
-        "parallel",
-        "async",
-        "error",
-        "exception",
-        "logging",
-        "test",
-        "validate",
-        "security",
-        "performance",
-        "memory",
-        "database",
-        "api",
-        "endpoint",
-        "config",
-        "dependency",
-        "import",
-        "export",
-        "function",
-        "class",
-        "method",
-        "variable",
-        "type",
-        "interface",
+    # Fallback domain terms - used if no project terms available
+    # These are intentionally HIGH-SIGNAL terms, not generic ones
+    FALLBACK_DOMAIN_TERMS: ClassVar[list[str]] = [
+        # Architectural patterns (specific)
+        "singleton", "factory", "observer", "decorator", "middleware",
+        # Performance-specific
+        "cache", "memoize", "lazy", "batch", "throttle", "debounce",
+        # Concurrency-specific
+        "async", "await", "concurrent", "parallel", "lock", "mutex", "semaphore",
+        # Error handling patterns
+        "retry", "fallback", "circuit", "timeout", "backoff",
+        # Data patterns
+        "serialize", "deserialize", "marshal", "parse", "validate",
     ]
 
     # Category keywords for classification
@@ -102,9 +104,16 @@ class DreamValidator:
         self.llm_client = llm_client
         self.theme_history: dict[str, ThemeEntry] = {}
         self.content_hashes: set[str] = set()
-        self.theme_decay_hours = 24
-        self.max_theme_history = 100
-        self.repetition_threshold = 3
+        
+        # Repetition handling configuration
+        self.theme_decay_hours = 24          # Themes expire after 24 hours
+        self.max_theme_history = 100         # Max themes to track
+        self.repetition_threshold = 3        # After 3 occurrences, apply exponential penalty
+        self.novelty_weight = 0.4            # Weight of theme novelty in final score
+
+        # Project-specific domain terms (populated from indexed codebase)
+        self._project_terms: set[str] = set()
+        self._project_terms_initialized = False
 
         # Semantic deduplication: track recent dreams and analyzed files
         # Use deque for O(1) append/trim instead of O(n) list slicing (per dream_20251229_184523)
@@ -116,11 +125,70 @@ class DreamValidator:
         self.file_cooldowns: dict[str, datetime] = {}
         self.file_cooldown_minutes = 30
 
+    def initialize_project_terms(self, indexer: "CodebaseIndexer") -> None:
+        """
+        Extract project-specific domain terms from the indexed codebase.
+        
+        Instead of generic terms like
+        "function" or "class", we track terms specific to THIS project like
+        "conductor", "dreamer", "validator", etc.
+        
+        Args:
+            indexer: The codebase indexer to extract terms from.
+        """
+        if self._project_terms_initialized:
+            return
+            
+        try:
+            # Get all chunk metadata from the collection
+            results = indexer.collection.get(include=["metadatas"])
+            
+            term_counts: dict[str, int] = defaultdict(int)
+            
+            for metadata in results.get("metadatas", []):
+                if not metadata:
+                    continue
+                    
+                # Extract from file paths (e.g., "conductor.py" -> "conductor")
+                file_path = metadata.get("file_path", "")
+                if file_path:
+                    # Get the filename without extension
+                    filename = file_path.split("/")[-1].rsplit(".", 1)[0]
+                    if len(filename) >= 4 and filename not in {"__init__", "main", "test", "utils"}:
+                        term_counts[filename.lower()] += 1
+                
+                # Extract from chunk names (function/class names)
+                name = metadata.get("name", "")
+                if name and len(name) >= 4:
+                    # Convert CamelCase to lowercase
+                    name_lower = re.sub(r'([A-Z])', r'_\1', name).lower().strip('_')
+                    # Split on underscores and take meaningful parts
+                    for part in name_lower.split('_'):
+                        if len(part) >= 4 and part not in {"self", "init", "main", "test", "none"}:
+                            term_counts[part] += 1
+                    # Also track the full name
+                    if len(name) >= 4:
+                        term_counts[name.lower()] += 1
+            
+            # Take top 50 most common terms (these are project-specific)
+            sorted_terms = sorted(term_counts.items(), key=lambda x: x[1], reverse=True)
+            self._project_terms = {term for term, count in sorted_terms[:50] if count >= 2}
+            
+            logger.info(
+                f"Initialized {len(self._project_terms)} project-specific domain terms: "
+                f"{list(self._project_terms)[:10]}..."
+            )
+            self._project_terms_initialized = True
+            
+        except Exception as e:
+            logger.warning(f"Failed to extract project terms: {e}")
+            self._project_terms_initialized = True  # Don't retry on failure
+
     def get_avoidance_prompt(self) -> str:
         """
         Generate a prompt section telling the model what topics to AVOID.
         
-        ZetaZero-style: inject overused themes into the prompt so the model
+        Inject overused themes into the prompt so the model
         knows what NOT to generate, rather than rejecting after the fact.
         """
         self._decay_themes()
@@ -233,6 +301,9 @@ Focus on UNEXPLORED aspects of the codebase. Think of something NEW and DIFFEREN
                 rejection_reason=f"Too repetitive (novelty={combined_novelty:.2f})",
             )
 
+        # Get theme warnings BEFORE recording (so we see current state)
+        theme_warnings = self._get_theme_warnings(dream_content)
+        
         # Dream is valid - record it
         self.content_hashes.add(content_hash)
         self._record_themes(dream_content)
@@ -244,6 +315,7 @@ Focus on UNEXPLORED aspects of the codebase. Think of something NEW and DIFFEREN
             is_valid=True,
             novelty_score=combined_novelty,
             category=self._categorize(dream_content),
+            theme_warnings=theme_warnings,
         )
 
     def _lucid_check(self, content: str) -> bool:
@@ -289,7 +361,7 @@ Answer:"""
         """
         Critic Loop: Self-critique the dream and optionally refine it.
 
-        Implements the ZetaZero Critic pattern - asking "what's wrong with this?"
+        Implements the Critic pattern - asking "what's wrong with this?"
         before accepting output, and refining if issues are found.
 
         Args:
@@ -405,6 +477,10 @@ Provide ONLY the improved suggestion, no meta-commentary:"""
     def _score_novelty(self, content: str) -> float:
         """
         Score content novelty based on theme repetition.
+        
+        Exponential penalty:
+        - Below threshold: linear penalty (0.1 * count)
+        - At/above threshold: exponential penalty (0.3 * (count - threshold + 1))
 
         Returns:
             Float between 0 (completely repetitive) and 1 (completely novel).
@@ -413,25 +489,78 @@ Provide ONLY the improved suggestion, no meta-commentary:"""
 
         themes = self._extract_themes(content)
         if not themes:
-            return 0.5  # Neutral if no themes detected
+            return 1.0  # Novel by default if no themes detected (changed from 0.5)
 
-        penalties = []
+        total_penalty = 0.0
+        theme_count = 0
+
         for theme in themes:
             if theme in self.theme_history:
                 entry = self.theme_history[theme]
-                # Penalty increases with repetition count
-                penalty = min(1.0, entry.count * 0.3)
-                penalties.append(penalty)
-            else:
-                penalties.append(0.0)
+                occurrences = entry.count
+                
+                # Exponential penalty for repetition
+                if occurrences >= self.repetition_threshold:
+                    # Exponential penalty once threshold exceeded
+                    penalty = 0.3 * (occurrences - self.repetition_threshold + 1)
+                else:
+                    # Linear penalty below threshold
+                    penalty = 0.1 * occurrences
+                
+                total_penalty += penalty
+                theme_count += 1
 
-        avg_penalty = sum(penalties) / len(penalties) if penalties else 0.0
-        return max(0.0, 1.0 - avg_penalty)
+        if theme_count == 0:
+            return 1.0
+
+        avg_penalty = total_penalty / theme_count
+        novelty = max(0.0, 1.0 - avg_penalty)
+        
+        logger.debug(
+            f"[NOVELTY] Score: {novelty:.2f} (themes: {theme_count}, "
+            f"avg_penalty: {avg_penalty:.2f}, threshold: {self.repetition_threshold})"
+        )
+
+        return novelty
 
     def _extract_themes(self, content: str) -> list[str]:
-        """Extract domain-relevant themes from content."""
+        """
+        Extract domain-relevant themes from content.
+        
+        Uses project-specific terms if available, falls back to
+        high-signal generic terms.
+        """
         content_lower = content.lower()
-        return [term for term in self.DOMAIN_TERMS if term in content_lower]
+        
+        # Prefer project-specific terms
+        if self._project_terms:
+            themes = [term for term in self._project_terms if term in content_lower]
+            # Also check fallback terms for cross-project patterns
+            themes.extend(
+                term for term in self.FALLBACK_DOMAIN_TERMS 
+                if term in content_lower and term not in themes
+            )
+            return themes
+        
+        # Fallback to generic high-signal terms
+        return [term for term in self.FALLBACK_DOMAIN_TERMS if term in content_lower]
+
+    def _get_theme_warnings(self, content: str) -> list[str]:
+        """Get warnings for themes approaching the repetition limit."""
+        themes = self._extract_themes(content)
+        warnings = []
+        
+        for theme in themes:
+            if theme in self.theme_history:
+                count = self.theme_history[theme].count
+                # Warn if this would be 2nd or 3rd occurrence
+                if count >= 1:
+                    next_count = count + 1
+                    warnings.append(
+                        f"Theme '{theme}': occurrence {next_count}/{self.repetition_threshold}"
+                    )
+        
+        return warnings if warnings else None
 
     def _record_themes(self, content: str) -> None:
         """Record themes from validated dream."""
@@ -540,15 +669,27 @@ Provide ONLY the improved suggestion, no meta-commentary:"""
 
     def get_stats(self) -> dict:
         """Get validator statistics for monitoring."""
+        # Find overused themes (at or above threshold)
+        overused_themes = [
+            (theme, entry.count) 
+            for theme, entry in self.theme_history.items() 
+            if entry.count >= self.repetition_threshold
+        ]
+        
         return {
             "recent_dreams_count": len(self.recent_dreams),
             "content_hashes_count": len(self.content_hashes),
             "theme_history_count": len(self.theme_history),
+            "project_terms_count": len(self._project_terms),
+            "project_terms_initialized": self._project_terms_initialized,
+            "overused_themes": overused_themes,
             "files_on_cooldown": len(
                 [f for f in self.file_cooldowns if self._is_file_on_cooldown(f)]
             ),
             "similarity_threshold": self.similarity_threshold,
             "file_cooldown_minutes": self.file_cooldown_minutes,
+            "theme_decay_hours": self.theme_decay_hours,
+            "repetition_threshold": self.repetition_threshold,
         }
 
 

@@ -1,7 +1,7 @@
 """
 Proactive Memory - Anticipates context before it's needed.
 
-Inspired by ZetaZero's proactive fetching:
+Features:
 - Predicts what context will be useful based on current focus
 - Uses graph edges, imports, and TRM to build anticipatory context
 - Reduces "cold start" for each dream cycle
@@ -94,14 +94,21 @@ class ProactiveMemory:
         ctx = ProactiveContext(source_file=source_file)
 
         # 1. Extract imports from the code
-        if code_content:
-            ctx.imported_modules = self._extract_imports(code_content)
-        elif Path(source_file).exists():
+        # Note: code_content may be a chunk that doesn't include imports
+        # So we always try to read the full file for imports
+        file_path = Path(source_file)
+        if file_path.exists():
             try:
-                content = Path(source_file).read_text(errors="ignore")
-                ctx.imported_modules = self._extract_imports(content)
+                full_content = file_path.read_text(errors="ignore")
+                ctx.imported_modules = self._extract_imports(full_content)
             except Exception as e:
                 logger.debug(f"Could not read {source_file}: {e}")
+                # Fallback to chunk content
+                if code_content:
+                    ctx.imported_modules = self._extract_imports(code_content)
+        elif code_content:
+            # File doesn't exist locally (Docker path), try chunk
+            ctx.imported_modules = self._extract_imports(code_content)
 
         # 2. Find related files from graph (nodes about same file)
         ctx.related_files = self._find_related_files(source_file)
@@ -121,13 +128,21 @@ class ProactiveMemory:
         ]
         ctx.confidence = sum(signals) / len(signals)
 
-        logger.debug(
+        # Log at INFO level so we can verify it's working
+        logger.info(
             f"Proactive context for {Path(source_file).name}: "
             f"confidence={ctx.confidence:.2f}, "
             f"imports={len(ctx.imported_modules)}, "
             f"related={len(ctx.related_files)}, "
-            f"graph={len(ctx.graph_context)}"
+            f"graph={len(ctx.graph_context)}, "
+            f"trm={len(ctx.trm_context) > 0}"
         )
+        
+        # Log what we're actually providing
+        if ctx.imported_modules:
+            logger.info(f"  Imports: {ctx.imported_modules[:5]}")
+        if ctx.graph_context:
+            logger.info(f"  Graph insights: {len(ctx.graph_context)} found")
 
         return ctx
 
@@ -244,4 +259,5 @@ def get_proactive_memory() -> ProactiveMemory:
     if _proactive_memory is None:
         _proactive_memory = ProactiveMemory()
     return _proactive_memory
+
 

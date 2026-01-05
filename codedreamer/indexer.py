@@ -335,9 +335,29 @@ class CodebaseIndexer:
 
     def _find_source_files(self, root: Path) -> Iterator[Path]:
         """Find all supported source files in directory tree."""
+        import fnmatch
+        
+        # Parse configurable exclude patterns
+        exclude_patterns = [p.strip() for p in settings.exclude_patterns.split(",") if p.strip()]
+        
         for path in root.rglob("*"):
-            # Skip ignored directories
+            # Skip ignored directories (hardcoded system dirs)
             if any(ignored in path.parts for ignored in IGNORE_PATTERNS):
+                continue
+            
+            # Skip configurable exclusions (directories or file patterns)
+            relative_path = path.relative_to(root)
+            skip = False
+            for pattern in exclude_patterns:
+                # Check if pattern matches any directory component
+                if pattern in relative_path.parts:
+                    skip = True
+                    break
+                # Check if pattern matches filename (glob pattern)
+                if fnmatch.fnmatch(path.name, pattern):
+                    skip = True
+                    break
+            if skip:
                 continue
 
             # Check if supported extension

@@ -1,7 +1,7 @@
 """
 Deep Dive Drilling State Management.
 
-Implements ZetaZero-style 4-level drilling to transform vague insights
+Implements 4-level drilling to transform vague insights
 into concrete, actionable code.
 
 Levels:
@@ -170,8 +170,8 @@ def get_random_graph_context(graph: "KnowledgeGraph", skip_types: list | None = 
     
     skip_types = skip_types or []
     
-    # Get all active nodes
-    active_nodes = [n for n in graph.nodes if n.is_active]
+    # Get all active nodes (access private _nodes dict)
+    active_nodes = [n for n in graph._nodes.values() if n.is_active]
     
     if not active_nodes:
         return "", ""
@@ -246,4 +246,5 @@ def get_drill_state() -> DrillState:
     if _drill_state is None:
         _drill_state = DrillState()
     return _drill_state
+
 

@@ -1,7 +1,7 @@
 """
 Loop detection for generated content.
 
-Implements ZetaZero-style active loop detection to catch and truncate
+Implements active loop detection to catch and truncate
 repetitive content before it ruins dream quality.
 """
 
@@ -53,7 +53,7 @@ class LoopDetectionResult:
 
 def detect_repeated_blocks(text: str, block_size: int = MIN_BLOCK_SIZE) -> LoopDetectionResult:
     """
-    Detect repeated text blocks (ZetaZero style).
+    Detect repeated text blocks.
     
     Checks if the last N characters appear earlier in the text,
     indicating a generation loop.
@@ -192,7 +192,7 @@ class ConsecutiveDiscardTracker:
     """
     Track consecutive discards to detect when generation is stuck.
     
-    ZetaZero resets drill state after too many discards.
+    Resets drill state after too many discards.
     """
     
     def __init__(self, max_discards: int = 3):
@@ -236,4 +236,5 @@ def get_discard_tracker() -> ConsecutiveDiscardTracker:
     if _discard_tracker is None:
         _discard_tracker = ConsecutiveDiscardTracker()
     return _discard_tracker
+
 
