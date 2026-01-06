@@ -124,6 +124,10 @@ DREAMER_DREAMS_DIR=./dreams
 # === Indexing ===
 DREAMER_EXCLUDE_PATTERNS=tests,test_*,*_test.py,conftest.py  # Skip test files
 DREAMER_CLEAR_INDEX_ON_START=false  # Set true to wipe index on each startup
+
+# === Extended Context Mode (for 32GB+ VRAM) ===
+DREAMER_EXTENDED_CONTEXT=true       # Enables: 3x context, import snippets, codebase overview
+DREAMER_EXTENDED_CONTEXT_LIMIT=12000  # Context limit when extended mode is on (default 12000)
 ```
 
 ## Commands

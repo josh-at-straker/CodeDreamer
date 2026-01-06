@@ -72,6 +72,16 @@ class Settings(BaseSettings):
     prompt_context_limit: int = Field(
         default=4000, ge=1000, description="Max chars of code context in prompts"
     )
+    
+    # Extended context mode - for high-VRAM users (32GB+)
+    # Enables: larger context, import file inclusion, codebase overview
+    extended_context: bool = Field(
+        default=False,
+        description="Enable extended context mode: 2x context limit, import snippets, codebase overview",
+    )
+    extended_context_limit: int = Field(
+        default=12000, ge=4000, description="Context limit when extended_context=True"
+    )
 
     # Validation thresholds
     novelty_threshold: float = Field(
@@ -94,7 +104,7 @@ class Settings(BaseSettings):
 
     # Indexing exclusions (comma-separated patterns)
     exclude_patterns: str = Field(
-        default="tests,test_*,*_test.py,conftest.py",
+        default="tests,test_*,*_test.py,conftest.py,__init__.py",
         description="Comma-separated patterns to exclude from indexing (directories or file globs)",
     )
     clear_index_on_start: bool = Field(
@@ -111,6 +121,11 @@ class Settings(BaseSettings):
         """Convert string paths to Path objects and resolve them."""
         if v is None:
             return None
+        # Handle empty strings or directory-only paths (no actual model file)
+        if isinstance(v, str):
+            v = v.strip()
+            if not v or v.endswith("/") or not v.endswith(".gguf"):
+                return None
         path = Path(v)
         if path.exists():
             return path.resolve()

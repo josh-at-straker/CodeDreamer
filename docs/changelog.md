@@ -1,5 +1,16 @@
 # Changelog
 
+- Changed: Disabled 7B coder model in favor of 72B reasoning model for code generation. Fixed config.py to properly handle empty/invalid CODER_MODEL_PATH values. (Josh Angel, 2026-01-06)
+- Fixed: DREAMER_EXTENDED_CONTEXT wasn't being passed to Docker container. Added to docker-compose.yaml, fixed .env variable naming. (Josh Angel, 2026-01-06)
+- Changed: Adopted ZetaZero's rotating focused prompts. 12 different prompt types (architecture, bugs, optimization, security, simplification, missing, novel_capabilities, connections, evolution, dormant, hidden_potential, documentation) rotate randomly each cycle. (Josh Angel, 2026-01-06)
+- Changed: Reverted "NO ISSUES FOUND" filter to strict mode, added counter to track skipped dreams (Josh Angel, 2026-01-06)
+- Fixed: "NO ISSUES FOUND" filter now works - regex needed re.DOTALL to match across newlines in Quality Verdict section (Josh Angel, 2026-01-06)
+- Fixed: AttributeError in get_random_graph_context - graph.edges doesn't exist, use graph._graph.neighbors() instead (Josh Angel, 2026-01-06)
+- Added: Filter out "NO ISSUES FOUND" dreams - non-actionable dreams are now rejected during validation (Josh Angel, 2026-01-06)
+- Fixed: AttributeError in get_random_graph_context - KnowledgeNode has no is_active, use tier != COLD instead (Josh Angel, 2026-01-06)
+- Added: DREAMER_EXTENDED_CONTEXT mode for high-VRAM users (32GB+). Enables 3x context limit, import file snippets, and auto-generated codebase overview. Also updated prompt to allow "NO ISSUES FOUND" verdict for well-written code. (Josh Angel, 2026-01-06)
+- Changed: Added __init__.py to default exclude patterns - trivial files produce low-quality dreams (Josh Angel, 2026-01-06)
+- Fixed: Project term extraction now excludes common words (handler, client, error, etc.) to prevent novelty=0.00 on every dream (Josh Angel, 2026-01-06)
 - Fixed: Proactive memory now reads full source file for import extraction, not just chunk content which may not include imports. Added INFO-level logging to verify proactive memory is working. (Josh Angel, 2026-01-06)
 - Changed: Improved repetition handling - exponential penalty for themes exceeding threshold, 24h time-based decay, project-aware domain terms extracted from indexed codebase (Josh Angel, 2026-01-06)
 - Fixed: AttributeError in get_random_graph_context - accessing graph._nodes instead of graph.nodes (Josh Angel, 2026-01-06)

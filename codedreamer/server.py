@@ -489,40 +489,43 @@ Be SPECIFIC. Be CONCRETE. Be NOVEL."""
 Build DIRECTLY on your previous insight. Make it MORE CONCRETE and ACTIONABLE."""
 
     else:
-        # Discovery mode: normal analysis
-        analysis_prompt = f"""You are a senior software architect performing a deep code review.
+        # Discovery mode: rotating focused prompts (from ZetaZero)
+        # Use extended context limit if enabled
+        context_limit = settings.extended_context_limit if settings.extended_context else settings.prompt_context_limit
+        
+        # Rotating focused prompts - one task per cycle
+        import random
+        # All 12 prompts from ZetaZero's dream_codebase.py
+        DREAM_PROMPTS = [
+            ("architecture", "Analyze this code's architecture. What patterns do you see? What could be improved? Be specific and concise."),
+            ("bugs", "Look for potential bugs, edge cases, or error conditions that aren't handled. List specific issues."),
+            ("optimization", "Identify performance bottlenecks or optimization opportunities in this code. Be specific."),
+            ("security", "Identify any security vulnerabilities (injection, overflow, race conditions, etc). Be specific."),
+            ("simplification", "What parts of this code are overly complex? How could they be simplified while maintaining functionality?"),
+            ("missing", "What's missing from this code? What features or error handling should be added?"),
+            ("novel_capabilities", "Based on the patterns and components in this code, propose 3 novel capabilities or features that don't exist yet. Think creatively about emergent behaviors or synergies. Be specific and technical - describe HOW each capability would work."),
+            ("connections", "How could this code connect with or enhance other parts of the system? What cross-cutting features or integrations would multiply its value? Think about unexpected combinations."),
+            ("evolution", "If this code could evolve itself, what would it change? What's the next logical step in its development? Propose specific modifications that would make it more powerful."),
+            ("dormant", "Look for features that appear to be coded but not fully integrated or used. Find dead code, unused functions, incomplete implementations, or capabilities that exist but aren't wired up. List what's dormant and how to activate it."),
+            ("hidden_potential", "What hidden potential exists in this code that isn't being exploited? What could this code do that it currently doesn't? Look for underutilized data structures, unused parameters, or capabilities hiding in plain sight."),
+            ("documentation", "Generate concise documentation for this code. Include: 1) Purpose and overview, 2) Key functions/classes with brief descriptions, 3) Usage examples, 4) Important configuration or parameters. Format as markdown."),
+        ]
+        
+        prompt_name, focused_task = random.choice(DREAM_PROMPTS)
+        logger.info(f"Dream focus: {prompt_name}")
+        
+        analysis_prompt = f"""You are analyzing code from {chunk_source}.
 {trm_section}
 {avoidance_prompt}
 
-## Task
-{drill_task}
-
-## Code from {chunk_source} (may be a fragment):
+CODE:
 ```
-{chunk_content[:settings.prompt_context_limit]}
+{chunk_content[:context_limit]}
 ```
 
-## Your Analysis Should Include:
+TASK: {focused_task}
 
-1. **Current State Assessment** (2-3 sentences)
-   - What is this code doing?
-   - What patterns/paradigms is it using?
-
-2. **Identified Issues** (be specific)
-   - Name exact functions, classes, or lines
-   - Explain WHY each is problematic
-   - Consider: maintainability, performance, readability, testability
-
-3. **Proposed Improvement** (detailed)
-   - What specific change would you make?
-   - Why is this better than the current approach?
-   - What are the trade-offs?
-
-4. **Implementation Strategy**
-   - Step-by-step approach to implement
-   - What tests would validate the change?
-
-Think deeply. Take your time. Quality over brevity."""
+Provide your analysis in a clear, structured format. Be specific and reference line numbers or function names where relevant."""
 
     try:
         from .loop_detector import detect_and_truncate, get_discard_tracker

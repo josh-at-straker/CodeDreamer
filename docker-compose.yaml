@@ -65,6 +65,10 @@ services:
 
       # === Environment Variables ===
       - DREAMER_CLEAR_INDEX_ON_START=${CLEAR_INDEX_ON_START:-false}
+      
+      # === Extended Context Mode (for 32GB+ VRAM) ===
+      - DREAMER_EXTENDED_CONTEXT=${EXTENDED_CONTEXT:-false}
+      - DREAMER_EXTENDED_CONTEXT_LIMIT=${EXTENDED_CONTEXT_LIMIT:-12000}
     
     # GPU support (NVIDIA)
     deploy:

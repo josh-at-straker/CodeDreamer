@@ -27,18 +27,31 @@ class ProactiveContext:
     source_file: str
     related_files: list[str] = field(default_factory=list)
     imported_modules: list[str] = field(default_factory=list)
+    import_snippets: dict[str, str] = field(default_factory=dict)  # module -> code snippet
     graph_context: list[str] = field(default_factory=list)
     trm_context: str = ""
+    codebase_overview: str = ""  # Auto-generated summary of key files
     confidence: float = 0.0
 
     def to_prompt_section(self) -> str:
         """Format as a prompt section for the LLM."""
         sections = []
 
+        # Codebase overview (extended context mode)
+        if self.codebase_overview:
+            sections.append(f"**Codebase Overview**:\n{self.codebase_overview}")
+
         if self.imported_modules:
             sections.append(
                 f"**Imports**: This file uses: {', '.join(self.imported_modules[:10])}"
             )
+
+        # Import snippets (extended context mode)
+        if self.import_snippets:
+            snippets_section = "**Imported Code Context**:\n"
+            for module, snippet in list(self.import_snippets.items())[:3]:
+                snippets_section += f"\n`{module}`:\n```\n{snippet[:500]}...\n```\n"
+            sections.append(snippets_section)
 
         if self.related_files:
             sections.append(
@@ -124,6 +137,11 @@ class ProactiveMemory:
 
         # 4. Get TRM context (recent relevant thoughts)
         ctx.trm_context = self._get_trm_context(source_file)
+        
+        # 5. Extended context mode: import snippets and codebase overview
+        if settings.extended_context:
+            ctx.import_snippets = self._get_import_snippets(source_file, ctx.imported_modules)
+            ctx.codebase_overview = self._get_codebase_overview(source_file)
 
         # Calculate confidence based on how much context we found
         signals = [
@@ -135,13 +153,14 @@ class ProactiveMemory:
         ctx.confidence = sum(signals) / len(signals)
 
         # Log at INFO level so we can verify it's working
+        extended_info = f", snippets={len(ctx.import_snippets)}" if settings.extended_context else ""
         logger.info(
             f"Proactive context for {Path(source_file).name}: "
             f"confidence={ctx.confidence:.2f}, "
             f"imports={len(ctx.imported_modules)}, "
             f"related={len(ctx.related_files)}, "
             f"graph={len(ctx.graph_context)}, "
-            f"trm={len(ctx.trm_context) > 0}"
+            f"trm={len(ctx.trm_context) > 0}{extended_info}"
         )
         
         # Log what we're actually providing
@@ -247,6 +266,95 @@ class ProactiveMemory:
         if fragments:
             return "\n".join(f"- {f.content[:100]}..." for f in fragments)
         return ""
+
+    def _get_import_snippets(self, source_file: str, imports: list[str]) -> dict[str, str]:
+        """
+        Get code snippets from imported modules (extended context mode).
+        
+        For local project imports, reads the first ~500 chars of the file
+        to give context about what the import provides.
+        """
+        snippets = {}
+        source_dir = Path(source_file).parent
+        
+        for module in imports[:5]:  # Limit to 5 imports
+            # Skip standard library modules
+            if module in {"os", "sys", "re", "json", "time", "datetime", "logging", 
+                          "typing", "pathlib", "asyncio", "collections", "functools",
+                          "dataclasses", "abc", "enum", "uuid", "hashlib", "base64"}:
+                continue
+            
+            # Try to find the module file in the same project
+            possible_paths = [
+                source_dir / f"{module}.py",
+                source_dir.parent / f"{module}.py",
+                source_dir.parent / module / "__init__.py",
+                source_dir / module / "__init__.py",
+            ]
+            
+            for module_path in possible_paths:
+                if module_path.exists():
+                    try:
+                        content = module_path.read_text(errors="ignore")
+                        # Get first ~500 chars (usually includes imports and first class/function)
+                        snippets[module] = content[:500]
+                        logger.debug(f"Extended context: loaded snippet from {module_path}")
+                        break
+                    except Exception as e:
+                        logger.debug(f"Could not read {module_path}: {e}")
+        
+        return snippets
+
+    def _get_codebase_overview(self, source_file: str) -> str:
+        """
+        Generate a brief codebase overview (extended context mode).
+        
+        Provides the model with architectural context about the project structure.
+        """
+        source_dir = Path(source_file).parent
+        
+        # Find the project root (look for common markers)
+        project_root = source_dir
+        for _ in range(5):  # Max 5 levels up
+            if (project_root / "pyproject.toml").exists() or \
+               (project_root / "setup.py").exists() or \
+               (project_root / "requirements.txt").exists():
+                break
+            if project_root.parent == project_root:
+                break
+            project_root = project_root.parent
+        
+        # List key Python files in the project
+        try:
+            py_files = list(project_root.rglob("*.py"))
+            # Filter out tests, __pycache__, etc.
+            py_files = [f for f in py_files 
+                       if "__pycache__" not in str(f) 
+                       and "test" not in f.name.lower()
+                       and f.name != "__init__.py"]
+            
+            if not py_files:
+                return ""
+            
+            # Build a simple overview
+            overview_parts = [f"Project has {len(py_files)} Python files."]
+            
+            # Group by directory
+            dirs = {}
+            for f in py_files[:20]:  # Limit
+                rel_path = f.relative_to(project_root)
+                dir_name = str(rel_path.parent) if rel_path.parent != Path(".") else "root"
+                if dir_name not in dirs:
+                    dirs[dir_name] = []
+                dirs[dir_name].append(f.name)
+            
+            for dir_name, files in list(dirs.items())[:5]:
+                overview_parts.append(f"- {dir_name}/: {', '.join(files[:5])}")
+            
+            return "\n".join(overview_parts)
+        except Exception as e:
+            logger.debug(f"Could not generate codebase overview: {e}")
+            return ""
 
     def record_cooccurrence(self, file1: str, file2: str) -> None:
         """Record that two files appeared together (for future predictions)."""

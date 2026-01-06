@@ -125,6 +125,9 @@ class DreamValidator:
         # File cooldown: avoid analyzing same file repeatedly
         self.file_cooldowns: dict[str, datetime] = {}
         self.file_cooldown_minutes = 30
+        
+        # Counter for "no issues found" dreams (code is already clean)
+        self._no_issues_count = 0
 
     def initialize_project_terms(self, indexer: "CodebaseIndexer") -> None:
         """
@@ -248,6 +251,15 @@ Focus on UNEXPLORED aspects of the codebase. Think of something NEW and DIFFEREN
                 novelty_score=0.0,
                 category="unknown",
                 rejection_reason="Too short",
+            )
+
+        # Check for "NO ISSUES FOUND" verdict - don't save non-actionable dreams
+        if self._is_no_issues_dream(dream_content):
+            return ValidationResult(
+                is_valid=False,
+                novelty_score=0.0,
+                category=self._categorize(dream_content),
+                rejection_reason="No issues found - code is already good",
             )
 
         # Check file cooldown
@@ -594,6 +606,30 @@ Provide ONLY the improved suggestion, no meta-commentary:"""
         ]
         for theme in expired:
             del self.theme_history[theme]
+
+    def _is_no_issues_dream(self, content: str) -> bool:
+        """
+        Check if dream indicates no actionable issues.
+        
+        Dreams that say "no issues found" are skipped - the code is already good.
+        """
+        content_lower = content.lower()
+        
+        no_issue_patterns = [
+            "no issues found",
+            "no issues were identified",
+            "no significant issues",
+            "no improvements needed",
+            "nothing to improve",
+        ]
+        
+        for pattern in no_issue_patterns:
+            if pattern in content_lower:
+                self._no_issues_count += 1
+                logger.info(f"Skipping dream: '{pattern}' (total skipped: {self._no_issues_count})")
+                return True
+        
+        return False
 
     def _categorize(self, content: str) -> str:
         """Categorize dream based on content keywords."""

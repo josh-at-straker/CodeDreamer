@@ -168,10 +168,12 @@ def get_random_graph_context(graph: "KnowledgeGraph", skip_types: list | None = 
     """
     from .graph import NodeType
     
+    from .graph import StorageTier
+    
     skip_types = skip_types or []
     
-    # Get all active nodes (access private _nodes dict)
-    active_nodes = [n for n in graph._nodes.values() if n.is_active]
+    # Get all active nodes - those not in COLD tier (access private _nodes dict)
+    active_nodes = [n for n in graph._nodes.values() if n.tier != StorageTier.COLD]
     
     if not active_nodes:
         return "", ""
@@ -194,20 +196,18 @@ def get_random_graph_context(graph: "KnowledgeGraph", skip_types: list | None = 
 
 """
     
-    # Find connected nodes via edges
+    # Find connected nodes via networkx graph edges
     connected = []
-    for edge in graph.edges:
-        neighbor_id = None
-        if edge.source_id == seed_node.node_id:
-            neighbor_id = edge.target_id
-        elif edge.target_id == seed_node.node_id:
-            neighbor_id = edge.source_id
-        
-        if neighbor_id:
-            for n in graph.nodes:
-                if n.node_id == neighbor_id and n.is_active:
-                    connected.append(n)
-                    break
+    try:
+        # Get neighbors from the internal networkx graph
+        neighbors = list(graph._graph.neighbors(seed_node.id))
+        for neighbor_id in neighbors:
+            if neighbor_id in graph._nodes:
+                neighbor_node = graph._nodes[neighbor_id]
+                if neighbor_node.tier != StorageTier.COLD:
+                    connected.append(neighbor_node)
+    except Exception:
+        pass  # Graph may not have this node
     
     if connected:
         context += "### Related Nodes:\n"
@@ -219,7 +219,7 @@ def get_random_graph_context(graph: "KnowledgeGraph", skip_types: list | None = 
         others = random.sample(candidate_nodes, min(3, len(candidate_nodes) - 1))
         context += "### Other Codebase Areas:\n"
         for n in others:
-            if n.node_id != seed_node.node_id:
+            if n.id != seed_node.id:
                 context += f"- [{n.node_type.name}] {n.content[:100]}...\n"
     
     context += """
