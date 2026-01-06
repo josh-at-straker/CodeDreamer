@@ -1,0 +1,11 @@
+---
+description: Always use this rule - stack rules for working with this code base.
+alwaysApply: true
+glob: 
+---
+# Tech stack
+
+- Python for backends
+- FastAPi when building APIs
+- SQL / PGSQL for database - but also suggest others.
+- Docker compatible (docker file and docker-compose)

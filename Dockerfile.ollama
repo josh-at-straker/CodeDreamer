@@ -1,0 +1,66 @@
+# CodeDreamer Dockerfile for Ollama backend
+# Uses Ollama API instead of llama-cpp-python for Mac/Docker compatibility
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy project files
+COPY pyproject.toml README.md ./
+COPY codedreamer/ ./codedreamer/
+
+# Install Python dependencies (without llama-cpp-python)
+RUN pip install --no-cache-dir \
+    pydantic>=2.0 \
+    pydantic-settings>=2.0 \
+    typer>=0.9 \
+    rich>=13.0 \
+    chromadb>=0.5 \
+    apscheduler>=3.10 \
+    networkx>=3.0 \
+    fastapi>=0.100 \
+    uvicorn>=0.23 \
+    httpx>=0.25
+
+# Install the package in editable mode
+RUN pip install --no-cache-dir -e .
+
+# Patch imports to use Ollama versions
+# This creates a simple switcher that uses Ollama modules when available
+RUN echo 'import os\n\
+if os.environ.get("OLLAMA_HOST"):\n\
+    from codedreamer.models_ollama import *\n\
+else:\n\
+    from codedreamer.models import *\n\
+' > /app/codedreamer/_model_switcher.py
+
+# Create startup script that patches imports
+RUN echo '#!/bin/bash\n\
+# Patch models.py to use Ollama version\n\
+cp /app/codedreamer/models_ollama.py /app/codedreamer/models.py\n\
+cp /app/codedreamer/llm_ollama.py /app/codedreamer/llm.py\n\
+\n\
+# Start the server\n\
+exec python -m codedreamer.cli serve --host 0.0.0.0 --port 8080\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Create directories for persistent data
+RUN mkdir -p /dreams /data /codebase
+
+# Expose dashboard port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Run the server
+CMD ["/app/start.sh"]
+
+

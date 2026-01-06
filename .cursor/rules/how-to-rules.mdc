@@ -1,0 +1,13 @@
+---
+description: Always use this rule - code rules for working with this code base.
+alwaysApply: true
+glob: 
+---
+# Coding workflows.
+
+- Focus on the areas of code relevant to the task
+- Do not touch code that is unrelated to the task. 
+- Ensure correct python best practices are following in terms of layout (src, main.py, config, CRUD, services, etc)
+- Write tests for all major functionality. 
+- Avoid making major changes to the patterns at architecture of how a feature works after it has shows to work well, unless explicitly instructed. 
+- Always think about what other methods and areas of code might be affected by code changes. 
